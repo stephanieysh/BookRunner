@@ -1166,6 +1166,58 @@ test('PUT /resources/api_order_items.php returns 404 for another user item', asy
   assert.equal(released, true);
 });
 
+test('PUT /resources/api_order_items.php returns 404 when order total update affects no rows', async (t) => {
+  const userId = 'user-uuid-1';
+  const token = makeToken(userId);
+  const calls = [];
+  let released = false;
+  const client = {
+    query: async (sql, params) => {
+      calls.push({ sql, params });
+      if (sql === 'BEGIN' || sql === 'ROLLBACK') {
+        return { rows: [], rowCount: null };
+      }
+      if (sql.includes('UPDATE order_items AS oi')) {
+        return {
+          rows: [{
+            id: 'item-1',
+            order_id: 'order-1',
+            quantity: 3,
+            unit_price: '30.00',
+            line_total: '90.00',
+          }],
+          rowCount: 1,
+        };
+      }
+      if (sql.includes('UPDATE orders')) {
+        return { rows: [], rowCount: 0 };
+      }
+      throw new Error(`Unexpected SQL: ${sql}`);
+    },
+    release: () => {
+      released = true;
+    },
+  };
+
+  t.mock.method(db, 'connect', async () => client);
+
+  await withServer(async (port) => {
+    const response = await fetch(`http://127.0.0.1:${port}/resources/api_order_items.php?id=item-1`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ quantity: 3 }),
+    });
+
+    assert.equal(response.status, 404);
+  });
+
+  assert.ok(calls.some((call) => call.sql === 'ROLLBACK'));
+  assert.equal(released, true);
+});
+
 test('DELETE /resources/api_order_items.php returns 401 without Authorization header', async () => {
   await withServer(async (port) => {
     const response = await fetch(
@@ -1333,6 +1385,56 @@ test('DELETE /resources/api_order_items.php recalculates order total when items 
 
   assert.ok(calls.some((call) => call.sql.includes('UPDATE orders')));
   assert.equal(calls.some((call) => call.sql.includes('DELETE FROM orders')), false);
+  assert.equal(released, true);
+});
+
+test('DELETE /resources/api_order_items.php returns 404 when non-empty order total update affects no rows', async (t) => {
+  const userId = 'user-uuid-1';
+  const token = makeToken(userId);
+  const calls = [];
+  let released = false;
+  const client = {
+    query: async (sql, params) => {
+      calls.push({ sql, params });
+
+      if (sql === 'BEGIN' || sql === 'ROLLBACK') {
+        return { rows: [], rowCount: null };
+      }
+
+      if (sql.includes('DELETE FROM order_items')) {
+        return { rows: [{ id: 'item-1' }], rowCount: 1 };
+      }
+
+      if (sql.includes('SELECT 1 FROM order_items')) {
+        return { rows: [{ '?column?': 1 }], rowCount: 1 };
+      }
+
+      if (sql.includes('UPDATE orders')) {
+        return { rows: [], rowCount: 0 };
+      }
+
+      throw new Error(`Unexpected SQL: ${sql}`);
+    },
+    release: () => {
+      released = true;
+    },
+  };
+
+  t.mock.method(db, 'connect', async () => client);
+
+  await withServer(async (port) => {
+    const response = await fetch(
+      `http://127.0.0.1:${port}/resources/api_order_items.php?id=item-1&order_id=order-1`,
+      {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    );
+
+    assert.equal(response.status, 404);
+  });
+
+  assert.ok(calls.some((call) => call.sql === 'ROLLBACK'));
   assert.equal(released, true);
 });
 

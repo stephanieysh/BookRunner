@@ -69,6 +69,12 @@ router.put('/resources/api_order_items.php', orderItemsLimiter, requireAuth, asy
       [updatedItem.order_id, req.user.sub],
     );
 
+    if (totalResult.rowCount !== 1) {
+      await client.query('ROLLBACK');
+      transactionStarted = false;
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
     await client.query('COMMIT');
     transactionStarted = false;
     return res.status(200).json({
@@ -134,7 +140,7 @@ router.delete('/resources/api_order_items.php', orderItemsLimiter, requireAuth, 
       );
       orderDeleted = deleteOrderResult.rowCount > 0;
     } else {
-      await client.query(
+      const updateOrderTotalResult = await client.query(
         `UPDATE orders
          SET total_amount = COALESCE((
            SELECT SUM(line_total)
@@ -144,6 +150,12 @@ router.delete('/resources/api_order_items.php', orderItemsLimiter, requireAuth, 
          WHERE id = $1 AND user_id = $2`,
         [orderId, req.user.sub],
       );
+
+      if (updateOrderTotalResult.rowCount !== 1) {
+        await client.query('ROLLBACK');
+        transactionStarted = false;
+        return res.status(404).json({ error: 'Order not found' });
+      }
     }
 
     await client.query('COMMIT');
