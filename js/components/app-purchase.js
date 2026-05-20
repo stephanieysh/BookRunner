@@ -70,7 +70,7 @@ const Purchase = {
       );
       const token = this.authState.user?.token;
       if (!this.authState.isLoggedIn || !token) {
-        alert("You must be logged in to edit purchases.");
+        alert("You must be logged in to update quantities.");
         return;
       }
 
@@ -113,7 +113,7 @@ const Purchase = {
       );
       const token = this.authState.user?.token;
       if (!this.authState.isLoggedIn || !token) {
-        alert("You must be logged in to edit purchases.");
+        alert("You must be logged in to remove items.");
         return;
       }
 
