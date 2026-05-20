@@ -129,8 +129,18 @@ const Home = {
   mounted() {
     const apiUrl = window.__APP_CONFIG__.getApiUrl("resources/api_books.php");
     fetch(apiUrl)
-      .then((res) => res.json())
+      .then(async (res) => {
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+          throw new Error(data?.error || `HTTP ${res.status}`);
+        }
+        return data;
+      })
       .then((data) => {
+        if (!Array.isArray(data)) {
+          throw new Error('Book API returned unexpected data');
+        }
+
         this.books = data.filter(book =>
           Array.isArray(book.keywords) && book.keywords.some(k => k.toLowerCase() === this.keyword.toLowerCase())
         );
