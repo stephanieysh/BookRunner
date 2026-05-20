@@ -44,3 +44,22 @@ CREATE TABLE IF NOT EXISTS order_items (
     quantity INTEGER NOT NULL CHECK (quantity > 0),
     line_total NUMERIC(10, 2) NOT NULL CHECK (line_total = unit_price * quantity)
 );
+
+CREATE TABLE IF NOT EXISTS books (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    book_id VARCHAR(120) UNIQUE NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    author VARCHAR(255),
+    genre VARCHAR(200),
+    description TEXT,
+    price NUMERIC(10, 2) NOT NULL,
+    volume VARCHAR(50),
+    cover TEXT,
+    type VARCHAR(50),
+    publisher VARCHAR(255),
+    keywords TEXT,
+    stock INTEGER DEFAULT 0,
+    page_count INTEGER DEFAULT 0,
+    release_date VARCHAR(20),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);

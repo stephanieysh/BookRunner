@@ -102,7 +102,8 @@ const Book = {
 
   methods: {
     fetchBookDetails() {
-      fetch("books.json")
+      const apiUrl = window.__APP_CONFIG__.getApiUrl("resources/api_books.php");
+      fetch(apiUrl)
         .then((response) => response.json())
         .then((data) => {
           const book = data.find((b) => b.title === this.title);

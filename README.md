@@ -64,10 +64,10 @@ This Docker stack establishes the PostgreSQL-backed local application:
 
 - Frontend container builds and serves static assets
 - Express backend boots, responds on `/health`, and serves the auth/profile/cart API plus authenticated checkout and purchase history
-- PostgreSQL service starts, becomes healthy, and runs `bookrunner.sql` when the data volume is first initialized
+- PostgreSQL service starts, becomes healthy, and runs `bookrunner.sql` (schema) then `insertbooks.sql` (catalog seed) when the data volume is first initialized
 - Backend receives `DATABASE_URL` and `JWT_SECRET` for PostgreSQL-backed auth
 
-`DATABASE_URL` is wired into the backend service environment for PostgreSQL-backed auth/profile/cart/orders flows.
+`DATABASE_URL` is wired into the backend service environment for PostgreSQL-backed auth/profile/cart/orders flows. The book catalog is served from the database via `GET /resources/api_books.php` instead of the previous `books.json` file.
 
 ## Local verification
 
@@ -82,7 +82,7 @@ docker compose up --build
 Expected results:
 
 - PostgreSQL becomes healthy (`pg_isready` passes)
-- Schema tables (`users`, `cart_items`, `orders`, `order_items`) are created from `bookrunner.sql`
+- Schema tables (`users`, `cart_items`, `orders`, `order_items`, `books`) are created from `bookrunner.sql`
 - Backend `/health` returns `200 {"status":"ok"}`
 - Auth/profile requests under `/resources/api_user.php` are handled by the Express backend
 - Frontend is accessible at `http://localhost:8080`

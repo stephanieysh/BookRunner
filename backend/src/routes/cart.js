@@ -55,7 +55,7 @@ router.post('/resources/api_cart.php', cartLimiter, requireAuth, asyncHandler(as
     return res.status(400).json({ error: 'book_title, volume, and quantity are required' });
   }
 
-  const catalogItem = findCatalogItem({
+  const catalogItem = await findCatalogItem({
     bookId: req.body?.book_id,
     bookTitle,
     volume,

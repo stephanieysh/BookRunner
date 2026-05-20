@@ -6,6 +6,7 @@ const express = require('express');
 const userRoutes = require('./routes/users');
 const cartRoutes = require('./routes/cart');
 const orderRoutes = require('./routes/orders');
+const bookRoutes = require('./routes/books');
 
 const app = express();
 const DEFAULT_PORT = 3000;
@@ -100,6 +101,7 @@ app.get('/health', (_req, res) => {
 app.use(userRoutes);
 app.use(cartRoutes);
 app.use(orderRoutes);
+app.use(bookRoutes);
 
 if (require.main === module) {
   app.listen(PORT, HOST, () => {

@@ -127,11 +127,12 @@ const Home = {
   },
 
   mounted() {
-    fetch("books.json")
+    const apiUrl = window.__APP_CONFIG__.getApiUrl("resources/api_books.php");
+    fetch(apiUrl)
       .then((res) => res.json())
       .then((data) => {
         this.books = data.filter(book =>
-          book.keywords.some(k => k.toLowerCase() === this.keyword.toLowerCase())
+          Array.isArray(book.keywords) && book.keywords.some(k => k.toLowerCase() === this.keyword.toLowerCase())
         );
       })
       .catch((err) => console.error("Error loading book data:", err));
