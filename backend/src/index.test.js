@@ -600,6 +600,17 @@ test('POST /resources/api_cart.php adds a cart item with server-derived catalog 
 
   t.mock.method(db, 'query', async (sql, params) => {
     calls.push({ sql, params });
+    if (/SELECT[\s\S]*FROM books/i.test(sql)) {
+      return {
+        rows: [{
+          book_id: 'OP001',
+          title: 'One Piece',
+          volume: 'Vol 1',
+          cover: 'images/one_piece_vol_1.jpg',
+          price: 30,
+        }],
+      };
+    }
     return {
       rows: [{
         id: 'cart-1',
@@ -635,27 +646,28 @@ test('POST /resources/api_cart.php adds a cart item with server-derived catalog 
 
     const payload = await response.json();
     assert.equal(payload.user_id, userId);
-    assert.equal(payload.book_id, 'One Piece::1');
+    assert.equal(payload.book_id, 'OP001');
     assert.equal(payload.book_title, 'One Piece');
     assert.equal(payload.cover, 'images/one_piece_vol_1.jpg');
     assert.equal(payload.price, '30');
     assert.equal(payload.quantity, 2);
   });
 
-  assert.equal(calls.length, 1);
-  assert.match(calls[0].sql, /INSERT INTO cart_items/);
-  assert.equal(calls[0].params[0], userId);
-  assert.equal(calls[0].params[1], 'One Piece::1');
-  assert.equal(calls[0].params[2], 'One Piece');
-  assert.equal(calls[0].params[4], 'images/one_piece_vol_1.jpg');
-  assert.equal(calls[0].params[5], 30);
+  assert.equal(calls.length, 2);
+  assert.match(calls[0].sql, /SELECT[\s\S]*FROM books/i);
+  assert.match(calls[1].sql, /INSERT INTO cart_items/);
+  assert.equal(calls[1].params[0], userId);
+  assert.equal(calls[1].params[1], 'OP001');
+  assert.equal(calls[1].params[2], 'One Piece');
+  assert.equal(calls[1].params[4], 'images/one_piece_vol_1.jpg');
+  assert.equal(calls[1].params[5], 30);
 });
 
 test('POST /resources/api_cart.php returns 404 when the catalog item does not exist', async (t) => {
   const token = makeToken('user-uuid-1');
 
   t.mock.method(db, 'query', async () => {
-    throw new Error('db.query should not be called for missing catalog items');
+    return { rows: [] };
   });
 
   await withServer(async (port) => {

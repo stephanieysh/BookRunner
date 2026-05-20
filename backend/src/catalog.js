@@ -1,13 +1,13 @@
 'use strict';
 
-const catalog = require('../../books.json');
+const db = require('./db');
 
 function normalizeText(value) {
   const normalized = String(value ?? '').trim();
   return normalized.length > 0 ? normalized : null;
 }
 
-function findCatalogItem({ bookId, bookTitle, volume }) {
+async function findCatalogItem({ bookId, bookTitle, volume }) {
   const normalizedBookId = normalizeText(bookId);
   let requestedTitle = normalizeText(bookTitle);
   let requestedVolume = normalizeText(volume);
@@ -24,22 +24,27 @@ function findCatalogItem({ bookId, bookTitle, volume }) {
     return null;
   }
 
-  const book = catalog.find((entry) => normalizeText(entry.title)?.toLowerCase() === requestedTitle.toLowerCase());
-  if (!book) {
-    return null;
-  }
+  const volNumber = requestedVolume.replace('Vol ', '');
 
-  const matchedVolume = book.volumes.find((entry) => String(entry.volumeNumber) === requestedVolume);
-  if (!matchedVolume) {
+  const result = await db.query(
+    `SELECT book_id, title, volume, cover, price
+     FROM books
+     WHERE LOWER(title) = LOWER($1) AND volume = $2
+     LIMIT 1`,
+    [requestedTitle, 'Vol ' + volNumber]
+  );
+
+  const row = result.rows[0];
+  if (!row) {
     return null;
   }
 
   return {
-    bookId: `${book.title}::${matchedVolume.volumeNumber}`,
-    bookTitle: book.title,
-    volume: String(matchedVolume.volumeNumber),
-    cover: matchedVolume.cover,
-    price: Number(book.price),
+    bookId: row.book_id,
+    bookTitle: row.title,
+    volume: row.volume.replace('Vol ', ''),
+    cover: row.cover,
+    price: Number(row.price),
   };
 }
 
