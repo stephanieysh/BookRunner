@@ -65,9 +65,21 @@ const Purchase = {
     },
 
     updatePurchaseQuantity(item) {
-      fetch(`resources/api_order_items.php?id=${item.id}`, {
+      const orderItemsApiURL = window.__APP_CONFIG__.getApiUrl(
+        `resources/api_order_items.php?id=${item.id}`
+      );
+      const token = this.authState.user?.token;
+      if (!this.authState.isLoggedIn || !token) {
+        alert("You must be logged in to edit purchases.");
+        return;
+      }
+
+      fetch(orderItemsApiURL, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({ quantity: item.quantity }),
       })
         .then((res) => res.json())
@@ -96,9 +108,21 @@ const Purchase = {
     },
 
     removeFromPurchase(itemId, orderId) {
-      fetch(`resources/api_order_items.php?id=${itemId}&order_id=${orderId}`, {
+      const orderItemsApiURL = window.__APP_CONFIG__.getApiUrl(
+        `resources/api_order_items.php?id=${itemId}&order_id=${orderId}`
+      );
+      const token = this.authState.user?.token;
+      if (!this.authState.isLoggedIn || !token) {
+        alert("You must be logged in to edit purchases.");
+        return;
+      }
+
+      fetch(orderItemsApiURL, {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
       })
         .then((res) => res.json())
         .then((data) => {
