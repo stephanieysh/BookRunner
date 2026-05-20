@@ -33,6 +33,12 @@ const Purchase = {
   },
 
   methods: {
+    expireSession() {
+      this.authState.isLoggedIn = false;
+      this.authState.user = null;
+      window.location.hash = "#/login";
+    },
+
     fetchPurchases() {
       const ordersApiURL = window.__APP_CONFIG__.getApiUrl("resources/api_orders.php");
       const token = this.authState.user?.token;
@@ -65,14 +71,32 @@ const Purchase = {
     },
 
     updatePurchaseQuantity(item) {
-      fetch(`resources/api_order_items.php?id=${item.id}`, {
+      const orderItemsApiURL = window.__APP_CONFIG__.getApiUrl(
+        `resources/api_order_items.php?id=${item.id}`
+      );
+      const token = this.authState.user?.token;
+      if (!this.authState.isLoggedIn || !token) {
+        alert("You must be logged in to update quantities.");
+        return;
+      }
+
+      fetch(orderItemsApiURL, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({ quantity: item.quantity }),
       })
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.error) {
+        .then(async (res) => {
+          const data = await res.json().catch(() => null);
+
+          if (res.status === 401) {
+            this.expireSession();
+            return;
+          }
+
+          if (!res.ok || data?.error) {
             alert("Failed to update quantity.");
           } else {
             this.fetchPurchases();
@@ -96,13 +120,31 @@ const Purchase = {
     },
 
     removeFromPurchase(itemId, orderId) {
-      fetch(`resources/api_order_items.php?id=${itemId}&order_id=${orderId}`, {
+      const orderItemsApiURL = window.__APP_CONFIG__.getApiUrl(
+        `resources/api_order_items.php?id=${itemId}&order_id=${orderId}`
+      );
+      const token = this.authState.user?.token;
+      if (!this.authState.isLoggedIn || !token) {
+        alert("You must be logged in to remove items.");
+        return;
+      }
+
+      fetch(orderItemsApiURL, {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
       })
-        .then((res) => res.json())
-        .then((data) => {
-          if (!data.error) {
+        .then(async (res) => {
+          const data = await res.json().catch(() => null);
+
+          if (res.status === 401) {
+            this.expireSession();
+            return;
+          }
+
+          if (res.ok && !data?.error) {
             this.fetchPurchases();
           } else {
             alert("Failed to delete order item.");

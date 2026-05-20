@@ -1041,6 +1041,412 @@ test('GET /resources/api_orders.php returns authenticated user purchase history 
   assert.ok(calls[0].sql.includes('ORDER BY created_at DESC'));
 });
 
+// ---------------------------------------------------------------------------
+// /resources/api_order_items.php – authenticated order item operations
+// ---------------------------------------------------------------------------
+
+test('PUT /resources/api_order_items.php returns 401 without Authorization header', async () => {
+  await withServer(async (port) => {
+    const response = await fetch(`http://127.0.0.1:${port}/resources/api_order_items.php?id=item-1`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ quantity: 2 }),
+    });
+
+    assert.equal(response.status, 401);
+  });
+});
+
+test('PUT /resources/api_order_items.php updates an owned order item quantity', async (t) => {
+  const userId = 'user-uuid-1';
+  const token = makeToken(userId);
+  const calls = [];
+  let released = false;
+  const client = {
+    query: async (sql, params) => {
+      calls.push({ sql, params });
+
+      if (sql === 'BEGIN' || sql === 'COMMIT') {
+        return { rows: [], rowCount: null };
+      }
+
+      if (sql.includes('UPDATE order_items AS oi')) {
+        return {
+          rows: [{
+            id: 'item-1',
+            order_id: 'order-1',
+            quantity: 3,
+            unit_price: '30.00',
+            line_total: '90.00',
+          }],
+          rowCount: 1,
+        };
+      }
+
+      if (sql.includes('UPDATE orders')) {
+        return { rows: [{ total_amount: '120.00' }], rowCount: 1 };
+      }
+
+      throw new Error(`Unexpected SQL: ${sql}`);
+    },
+    release: () => {
+      released = true;
+    },
+  };
+
+  t.mock.method(db, 'connect', async () => client);
+
+  await withServer(async (port) => {
+    const response = await fetch(`http://127.0.0.1:${port}/resources/api_order_items.php?id=item-1`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ quantity: 3 }),
+    });
+
+    assert.equal(response.status, 200);
+
+    const payload = await response.json();
+    assert.equal(payload.success, true);
+    assert.equal(payload.affected_rows, 1);
+    assert.equal(payload.data.quantity, 3);
+    assert.equal(payload.data.order_total_amount, '120.00');
+  });
+
+  assert.equal(calls[0].sql, 'BEGIN');
+  assert.match(calls[1].sql, /UPDATE order_items AS oi/);
+  assert.match(calls[1].sql, /AND o.user_id = \$3/);
+  assert.deepEqual(calls[1].params, [3, 'item-1', userId]);
+  assert.match(calls[2].sql, /UPDATE orders/);
+  assert.deepEqual(calls[2].params, ['order-1', userId]);
+  assert.equal(calls[3].sql, 'COMMIT');
+  assert.equal(released, true);
+});
+
+test('PUT /resources/api_order_items.php returns 404 for another user item', async (t) => {
+  const token = makeToken('user-uuid-1');
+  const calls = [];
+  let released = false;
+  const client = {
+    query: async (sql, params) => {
+      calls.push({ sql, params });
+      if (sql === 'BEGIN' || sql === 'ROLLBACK') {
+        return { rows: [], rowCount: null };
+      }
+      if (sql.includes('UPDATE order_items AS oi')) {
+        return { rows: [], rowCount: 0 };
+      }
+      throw new Error(`Unexpected SQL: ${sql}`);
+    },
+    release: () => {
+      released = true;
+    },
+  };
+
+  t.mock.method(db, 'connect', async () => client);
+
+  await withServer(async (port) => {
+    const response = await fetch(`http://127.0.0.1:${port}/resources/api_order_items.php?id=item-1`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ quantity: 2 }),
+    });
+
+    assert.equal(response.status, 404);
+  });
+
+  assert.equal(calls[0].sql, 'BEGIN');
+  assert.match(calls[1].sql, /UPDATE order_items AS oi/);
+  assert.equal(calls[2].sql, 'ROLLBACK');
+  assert.equal(released, true);
+});
+
+test('PUT /resources/api_order_items.php returns 404 when order total update affects no rows', async (t) => {
+  const userId = 'user-uuid-1';
+  const token = makeToken(userId);
+  const calls = [];
+  let released = false;
+  const client = {
+    query: async (sql, params) => {
+      calls.push({ sql, params });
+      if (sql === 'BEGIN' || sql === 'ROLLBACK') {
+        return { rows: [], rowCount: null };
+      }
+      if (sql.includes('UPDATE order_items AS oi')) {
+        return {
+          rows: [{
+            id: 'item-1',
+            order_id: 'order-1',
+            quantity: 3,
+            unit_price: '30.00',
+            line_total: '90.00',
+          }],
+          rowCount: 1,
+        };
+      }
+      if (sql.includes('UPDATE orders')) {
+        return { rows: [], rowCount: 0 };
+      }
+      throw new Error(`Unexpected SQL: ${sql}`);
+    },
+    release: () => {
+      released = true;
+    },
+  };
+
+  t.mock.method(db, 'connect', async () => client);
+
+  await withServer(async (port) => {
+    const response = await fetch(`http://127.0.0.1:${port}/resources/api_order_items.php?id=item-1`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ quantity: 3 }),
+    });
+
+    assert.equal(response.status, 404);
+  });
+
+  assert.ok(calls.some((call) => call.sql === 'ROLLBACK'));
+  assert.equal(released, true);
+});
+
+test('DELETE /resources/api_order_items.php returns 401 without Authorization header', async () => {
+  await withServer(async (port) => {
+    const response = await fetch(
+      `http://127.0.0.1:${port}/resources/api_order_items.php?id=item-1&order_id=order-1`,
+      { method: 'DELETE' },
+    );
+
+    assert.equal(response.status, 401);
+  });
+});
+
+test('DELETE /resources/api_order_items.php returns 404 for another user item', async (t) => {
+  const token = makeToken('user-uuid-1');
+  const calls = [];
+  let released = false;
+  const client = {
+    query: async (sql, params) => {
+      calls.push({ sql, params });
+
+      if (sql === 'BEGIN' || sql === 'ROLLBACK') {
+        return { rows: [], rowCount: null };
+      }
+
+      if (sql.includes('DELETE FROM order_items')) {
+        return { rows: [], rowCount: 0 };
+      }
+
+      throw new Error(`Unexpected SQL: ${sql}`);
+    },
+    release: () => {
+      released = true;
+    },
+  };
+
+  t.mock.method(db, 'connect', async () => client);
+
+  await withServer(async (port) => {
+    const response = await fetch(
+      `http://127.0.0.1:${port}/resources/api_order_items.php?id=item-1&order_id=order-1`,
+      {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    );
+
+    assert.equal(response.status, 404);
+  });
+
+  assert.equal(calls[0].sql, 'BEGIN');
+  assert.ok(calls.some((call) => call.sql === 'ROLLBACK'));
+  assert.equal(calls.some((call) => call.sql === 'COMMIT'), false);
+  assert.equal(released, true);
+});
+
+test('DELETE /resources/api_order_items.php deletes order when removed item was the last one', async (t) => {
+  const userId = 'user-uuid-1';
+  const token = makeToken(userId);
+  const calls = [];
+  let released = false;
+  const client = {
+    query: async (sql, params) => {
+      calls.push({ sql, params });
+
+      if (sql === 'BEGIN' || sql === 'COMMIT') {
+        return { rows: [], rowCount: null };
+      }
+
+      if (sql.includes('DELETE FROM order_items')) {
+        return { rows: [{ id: 'item-1' }], rowCount: 1 };
+      }
+
+      if (sql.includes('SELECT 1 FROM order_items')) {
+        return { rows: [], rowCount: 0 };
+      }
+
+      if (sql.includes('DELETE FROM orders')) {
+        return { rows: [{ id: 'order-1' }], rowCount: 1 };
+      }
+
+      throw new Error(`Unexpected SQL: ${sql}`);
+    },
+    release: () => {
+      released = true;
+    },
+  };
+
+  t.mock.method(db, 'connect', async () => client);
+
+  await withServer(async (port) => {
+    const response = await fetch(
+      `http://127.0.0.1:${port}/resources/api_order_items.php?id=item-1&order_id=order-1`,
+      {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    );
+
+    assert.equal(response.status, 200);
+
+    const payload = await response.json();
+    assert.equal(payload.success, true);
+    assert.equal(payload.affected_rows, 1);
+    assert.equal(payload.order_deleted, true);
+  });
+
+  assert.ok(calls.some((call) => call.sql.includes('DELETE FROM order_items')));
+  assert.ok(calls.some((call) => call.sql.includes('SELECT 1 FROM order_items')));
+  assert.ok(calls.some((call) => call.sql.includes('DELETE FROM orders')));
+  assert.deepEqual(
+    calls.find((call) => call.sql.includes('DELETE FROM order_items')).params,
+    ['item-1', 'order-1', userId],
+  );
+  assert.equal(released, true);
+});
+
+test('DELETE /resources/api_order_items.php recalculates order total when items remain', async (t) => {
+  const userId = 'user-uuid-1';
+  const token = makeToken(userId);
+  const calls = [];
+  let released = false;
+  const client = {
+    query: async (sql, params) => {
+      calls.push({ sql, params });
+
+      if (sql === 'BEGIN' || sql === 'COMMIT') {
+        return { rows: [], rowCount: null };
+      }
+
+      if (sql.includes('DELETE FROM order_items')) {
+        return { rows: [{ id: 'item-1' }], rowCount: 1 };
+      }
+
+      if (sql.includes('SELECT 1 FROM order_items')) {
+        return { rows: [{ '?column?': 1 }], rowCount: 1 };
+      }
+
+      if (sql.includes('UPDATE orders')) {
+        return { rows: [], rowCount: 1 };
+      }
+
+      throw new Error(`Unexpected SQL: ${sql}`);
+    },
+    release: () => {
+      released = true;
+    },
+  };
+
+  t.mock.method(db, 'connect', async () => client);
+
+  await withServer(async (port) => {
+    const response = await fetch(
+      `http://127.0.0.1:${port}/resources/api_order_items.php?id=item-1&order_id=order-1`,
+      {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    );
+
+    assert.equal(response.status, 200);
+
+    const payload = await response.json();
+    assert.equal(payload.success, true);
+    assert.equal(payload.order_deleted, false);
+  });
+
+  assert.ok(calls.some((call) => call.sql.includes('UPDATE orders')));
+  assert.equal(calls.some((call) => call.sql.includes('DELETE FROM orders')), false);
+  assert.equal(released, true);
+});
+
+test('DELETE /resources/api_order_items.php returns 404 when non-empty order total update affects no rows', async (t) => {
+  const userId = 'user-uuid-1';
+  const token = makeToken(userId);
+  const calls = [];
+  let released = false;
+  const client = {
+    query: async (sql, params) => {
+      calls.push({ sql, params });
+
+      if (sql === 'BEGIN' || sql === 'ROLLBACK') {
+        return { rows: [], rowCount: null };
+      }
+
+      if (sql.includes('DELETE FROM order_items')) {
+        return { rows: [{ id: 'item-1' }], rowCount: 1 };
+      }
+
+      if (sql.includes('SELECT 1 FROM order_items')) {
+        return { rows: [{ '?column?': 1 }], rowCount: 1 };
+      }
+
+      if (sql.includes('UPDATE orders')) {
+        return { rows: [], rowCount: 0 };
+      }
+
+      throw new Error(`Unexpected SQL: ${sql}`);
+    },
+    release: () => {
+      released = true;
+    },
+  };
+
+  t.mock.method(db, 'connect', async () => client);
+
+  await withServer(async (port) => {
+    const response = await fetch(
+      `http://127.0.0.1:${port}/resources/api_order_items.php?id=item-1&order_id=order-1`,
+      {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    );
+
+    assert.equal(response.status, 404);
+  });
+
+  assert.ok(calls.some((call) => call.sql === 'ROLLBACK'));
+  assert.equal(released, true);
+});
+
+test('purchase component expires session and redirects to login on 401 purchase-item mutations', () => {
+  const purchaseComponentPath = path.join(__dirname, '..', '..', 'js', 'components', 'app-purchase.js');
+  const source = fs.readFileSync(purchaseComponentPath, 'utf8');
+
+  assert.ok(source.includes('if (res.status === 401)'));
+  assert.ok(source.includes('this.expireSession();'));
+  assert.ok(source.includes('window.location.hash = "#/login";'));
+});
+
 test('reset password template shows success before logged-out warning after password change', () => {
   const resetComponentPath = path.join(__dirname, '..', '..', 'js', 'components', 'app-reset-password.js');
   const source = fs.readFileSync(resetComponentPath, 'utf8');

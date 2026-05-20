@@ -6,6 +6,7 @@ const express = require('express');
 const userRoutes = require('./routes/users');
 const cartRoutes = require('./routes/cart');
 const orderRoutes = require('./routes/orders');
+const orderItemsRoutes = require('./routes/order-items');
 const bookRoutes = require('./routes/books');
 
 const app = express();
@@ -101,6 +102,7 @@ app.get('/health', (_req, res) => {
 app.use(userRoutes);
 app.use(cartRoutes);
 app.use(orderRoutes);
+app.use(orderItemsRoutes);
 app.use(bookRoutes);
 
 if (require.main === module) {
