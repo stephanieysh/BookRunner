@@ -32,22 +32,61 @@ router.put('/resources/api_order_items.php', orderItemsLimiter, requireAuth, asy
     return res.status(400).json({ error: 'id and a positive integer quantity are required' });
   }
 
-  const result = await db.query(
-    `UPDATE order_items AS oi
-     SET quantity = $1, line_total = oi.unit_price * $1
-     FROM orders AS o
-     WHERE oi.id = $2
-       AND oi.order_id = o.id
-       AND o.user_id = $3
-     RETURNING oi.id, oi.order_id, oi.quantity, oi.unit_price, oi.line_total`,
-    [quantity, orderItemId, req.user.sub],
-  );
+  const client = await db.connect();
+  let transactionStarted = false;
 
-  if (result.rowCount === 0) {
-    return res.status(404).json({ error: 'Order item not found' });
+  try {
+    await client.query('BEGIN');
+    transactionStarted = true;
+
+    const result = await client.query(
+      `UPDATE order_items AS oi
+       SET quantity = $1, line_total = oi.unit_price * $1
+       FROM orders AS o
+       WHERE oi.id = $2
+         AND oi.order_id = o.id
+         AND o.user_id = $3
+       RETURNING oi.id, oi.order_id, oi.quantity, oi.unit_price, oi.line_total`,
+      [quantity, orderItemId, req.user.sub],
+    );
+
+    if (result.rowCount === 0) {
+      await client.query('ROLLBACK');
+      transactionStarted = false;
+      return res.status(404).json({ error: 'Order item not found' });
+    }
+
+    const updatedItem = result.rows[0];
+    const totalResult = await client.query(
+      `UPDATE orders
+       SET total_amount = COALESCE((
+         SELECT SUM(line_total)
+         FROM order_items
+         WHERE order_id = $1
+       ), 0)
+       WHERE id = $1 AND user_id = $2
+       RETURNING total_amount`,
+      [updatedItem.order_id, req.user.sub],
+    );
+
+    await client.query('COMMIT');
+    transactionStarted = false;
+    return res.status(200).json({
+      success: true,
+      affected_rows: result.rowCount,
+      data: {
+        ...updatedItem,
+        order_total_amount: totalResult.rows[0]?.total_amount ?? null,
+      },
+    });
+  } catch (error) {
+    if (transactionStarted) {
+      await client.query('ROLLBACK');
+    }
+    throw error;
+  } finally {
+    client.release();
   }
-
-  return res.status(200).json({ success: true, affected_rows: result.rowCount, data: result.rows[0] });
 }));
 
 router.delete('/resources/api_order_items.php', orderItemsLimiter, requireAuth, asyncHandler(async (req, res) => {
@@ -58,10 +97,14 @@ router.delete('/resources/api_order_items.php', orderItemsLimiter, requireAuth, 
     return res.status(400).json({ error: 'id and order_id are required' });
   }
 
-  await db.query('BEGIN');
+  const client = await db.connect();
+  let transactionStarted = false;
 
   try {
-    const deleteOrderItemResult = await db.query(
+    await client.query('BEGIN');
+    transactionStarted = true;
+
+    const deleteOrderItemResult = await client.query(
       `DELETE FROM order_items AS oi
        USING orders AS o
        WHERE oi.id = $1
@@ -73,33 +116,50 @@ router.delete('/resources/api_order_items.php', orderItemsLimiter, requireAuth, 
     );
 
     if (deleteOrderItemResult.rowCount === 0) {
-      await db.query('ROLLBACK');
+      await client.query('ROLLBACK');
+      transactionStarted = false;
       return res.status(404).json({ error: 'Order item not found' });
     }
 
-    const remainingItemsResult = await db.query(
+    const remainingItemsResult = await client.query(
       'SELECT 1 FROM order_items WHERE order_id = $1 LIMIT 1',
       [orderId],
     );
 
     let orderDeleted = false;
     if (remainingItemsResult.rowCount === 0) {
-      const deleteOrderResult = await db.query(
+      const deleteOrderResult = await client.query(
         'DELETE FROM orders WHERE id = $1 AND user_id = $2 RETURNING id',
         [orderId, req.user.sub],
       );
       orderDeleted = deleteOrderResult.rowCount > 0;
+    } else {
+      await client.query(
+        `UPDATE orders
+         SET total_amount = COALESCE((
+           SELECT SUM(line_total)
+           FROM order_items
+           WHERE order_id = $1
+         ), 0)
+         WHERE id = $1 AND user_id = $2`,
+        [orderId, req.user.sub],
+      );
     }
 
-    await db.query('COMMIT');
+    await client.query('COMMIT');
+    transactionStarted = false;
     return res.status(200).json({
       success: true,
       affected_rows: deleteOrderItemResult.rowCount,
       order_deleted: orderDeleted,
     });
   } catch (error) {
-    await db.query('ROLLBACK');
+    if (transactionStarted) {
+      await client.query('ROLLBACK');
+    }
     throw error;
+  } finally {
+    client.release();
   }
 }));
 

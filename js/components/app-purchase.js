@@ -33,6 +33,12 @@ const Purchase = {
   },
 
   methods: {
+    expireSession() {
+      this.authState.isLoggedIn = false;
+      this.authState.user = null;
+      window.location.hash = "#/login";
+    },
+
     fetchPurchases() {
       const ordersApiURL = window.__APP_CONFIG__.getApiUrl("resources/api_orders.php");
       const token = this.authState.user?.token;
@@ -82,9 +88,15 @@ const Purchase = {
         },
         body: JSON.stringify({ quantity: item.quantity }),
       })
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.error) {
+        .then(async (res) => {
+          const data = await res.json().catch(() => null);
+
+          if (res.status === 401) {
+            this.expireSession();
+            return;
+          }
+
+          if (!res.ok || data?.error) {
             alert("Failed to update quantity.");
           } else {
             this.fetchPurchases();
@@ -124,9 +136,15 @@ const Purchase = {
           Authorization: `Bearer ${token}`,
         },
       })
-        .then((res) => res.json())
-        .then((data) => {
-          if (!data.error) {
+        .then(async (res) => {
+          const data = await res.json().catch(() => null);
+
+          if (res.status === 401) {
+            this.expireSession();
+            return;
+          }
+
+          if (res.ok && !data?.error) {
             this.fetchPurchases();
           } else {
             alert("Failed to delete order item.");
