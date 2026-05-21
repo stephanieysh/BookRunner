@@ -15,6 +15,7 @@ const ordersLimiter = rateLimit({
   message: { error: 'Too many requests, please try again later' },
 });
 
+// function to normalize cart item IDs from the request body
 function normalizeCartItemIds(values) {
   if (!Array.isArray(values)) {
     return [];
