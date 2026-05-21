@@ -24,14 +24,23 @@ async function findCatalogItem({ bookId, bookTitle, volume }) {
     return null;
   }
 
-  const volNumber = requestedVolume.replace('Vol ', '');
+  const parsedVolume = Number(String(requestedVolume).replace(/^(?:Vol\s*)?/i, '').trim());
+  if (!Number.isInteger(parsedVolume) || parsedVolume <= 0) {
+    return null;
+  }
 
   const result = await db.query(
-    `SELECT book_id, title, volume, cover, price
-     FROM books
-     WHERE LOWER(title) = LOWER($1) AND volume = $2
+    `SELECT b.id AS book_id,
+            b.title,
+            b.price,
+            bv.volume_number,
+            COALESCE(bv.cover, '') AS cover
+     FROM books AS b
+     JOIN book_volumes AS bv ON bv.book_id = b.id
+     WHERE LOWER(b.title) = LOWER($1)
+       AND bv.volume_number = $2
      LIMIT 1`,
-    [requestedTitle, 'Vol ' + volNumber]
+    [requestedTitle, parsedVolume]
   );
 
   const row = result.rows[0];
@@ -42,7 +51,7 @@ async function findCatalogItem({ bookId, bookTitle, volume }) {
   return {
     bookId: row.book_id,
     bookTitle: row.title,
-    volume: row.volume.replace('Vol ', ''),
+    volume: String(row.volume_number),
     cover: row.cover,
     price: Number(row.price),
   };
