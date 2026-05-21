@@ -3,6 +3,7 @@
 // Set JWT_SECRET before loading the app so token signing works in tests
 process.env.JWT_SECRET = 'test-secret-for-unit-tests';
 process.env.FRONTEND_ORIGIN = 'http://localhost:8080, https://frontend.example.com';
+process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://test:test@localhost:5432/testdb';
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
