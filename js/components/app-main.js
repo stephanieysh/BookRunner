@@ -135,15 +135,16 @@ const Home = {
       })
       .then((data) => {
         if (!Array.isArray(data)) {
-          this.books = [];
-          console.error("Catalog response is not an array");
-          return;
+          throw new Error("Catalog response is not an array");
         }
         this.books = data.filter(book =>
           Array.isArray(book.keywords) && book.keywords.some(k => k.toLowerCase() === this.keyword.toLowerCase())
         );
       })
-      .catch((err) => console.error("Error loading book data:", err));
+      .catch((err) => {
+        this.books = [];
+        console.error("Error loading book data:", err);
+      });
   },
 
   methods: {
