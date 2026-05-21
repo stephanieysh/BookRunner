@@ -611,12 +611,6 @@ test('POST /resources/api_cart.php adds a cart item with server-derived catalog 
         }],
       };
     }
-    if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') {
-      return { rows: [], rowCount: null };
-    }
-    if (/SELECT pg_advisory_xact_lock/i.test(sql)) {
-      return { rows: [{ pg_advisory_xact_lock: null }] };
-    }
     return {
       rows: [{
         id: 'cart-1',
@@ -659,18 +653,16 @@ test('POST /resources/api_cart.php adds a cart item with server-derived catalog 
     assert.equal(payload.quantity, 2);
   });
 
-  assert.equal(calls.length, 5);
+  assert.equal(calls.length, 2);
   assert.match(calls[0].sql, /SELECT[\s\S]*FROM books/i);
-  assert.equal(calls[1].sql, 'BEGIN');
-  assert.match(calls[2].sql, /SELECT pg_advisory_xact_lock/i);
-  assert.match(calls[3].sql, /INSERT INTO cart_items/);
-  assert.doesNotMatch(calls[3].sql, /ON CONFLICT/);
-  assert.equal(calls[3].params[0], userId);
-  assert.equal(calls[3].params[1], 'OP001');
-  assert.equal(calls[3].params[2], 'One Piece');
-  assert.equal(calls[3].params[4], 'images/one_piece_vol_1.jpg');
-  assert.equal(calls[3].params[5], 30);
-  assert.equal(calls[4].sql, 'COMMIT');
+  assert.match(calls[1].sql, /pg_advisory_xact_lock/);
+  assert.match(calls[1].sql, /INSERT INTO cart_items/);
+  assert.doesNotMatch(calls[1].sql, /ON CONFLICT/);
+  assert.equal(calls[1].params[0], userId);
+  assert.equal(calls[1].params[1], 'OP001');
+  assert.equal(calls[1].params[2], 'One Piece');
+  assert.equal(calls[1].params[4], 'images/one_piece_vol_1.jpg');
+  assert.equal(calls[1].params[5], 30);
 });
 
 test('POST /resources/api_cart.php returns 404 when the catalog item does not exist', async (t) => {
@@ -717,15 +709,7 @@ test('POST /resources/api_cart.php increments quantity for existing cart rows', 
       };
     }
 
-    if (sql === 'BEGIN' || sql === 'COMMIT') {
-      return { rows: [], rowCount: null };
-    }
-
-    if (/SELECT pg_advisory_xact_lock/i.test(sql)) {
-      return { rows: [{ pg_advisory_xact_lock: null }] };
-    }
-
-    if (/WITH existing AS/i.test(sql)) {
+    if (/WITH lock AS/i.test(sql)) {
       return {
         rows: [{
           id: 'cart-1',
@@ -762,13 +746,13 @@ test('POST /resources/api_cart.php increments quantity for existing cart rows', 
     assert.equal(payload.quantity, 5);
   });
 
-  const upsertQuery = calls.find((call) => /WITH existing AS/i.test(call.sql));
+  const upsertQuery = calls.find((call) => /WITH lock AS/i.test(call.sql));
   assert.ok(upsertQuery);
   assert.match(upsertQuery.sql, /quantity = cart_items.quantity \+ \$7/);
   assert.equal(upsertQuery.params[6], 2);
 });
 
-test('POST /resources/api_cart.php rolls back and returns 500 when cart write fails', async (t) => {
+test('POST /resources/api_cart.php returns 500 when cart write fails', async (t) => {
   const token = makeToken('user-uuid-1');
   const calls = [];
 
@@ -787,15 +771,7 @@ test('POST /resources/api_cart.php rolls back and returns 500 when cart write fa
       };
     }
 
-    if (sql === 'BEGIN' || sql === 'ROLLBACK') {
-      return { rows: [], rowCount: null };
-    }
-
-    if (/SELECT pg_advisory_xact_lock/i.test(sql)) {
-      return { rows: [{ pg_advisory_xact_lock: null }] };
-    }
-
-    if (/INSERT INTO cart_items/i.test(sql)) {
+    if (/WITH lock AS/i.test(sql)) {
       throw new Error('cart write failed');
     }
 
@@ -819,8 +795,7 @@ test('POST /resources/api_cart.php rolls back and returns 500 when cart write fa
     assert.equal(response.status, 500);
   });
 
-  assert.ok(calls.some((call) => call.sql === 'BEGIN'));
-  assert.ok(calls.some((call) => call.sql === 'ROLLBACK'));
+  assert.ok(calls.some((call) => /WITH lock AS/i.test(call.sql)));
 });
 
 test('PUT /resources/api_cart.php/:id updates an owned cart item', async (t) => {
