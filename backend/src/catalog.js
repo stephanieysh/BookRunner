@@ -29,7 +29,42 @@ async function findCatalogItem({ bookId, bookTitle, volume }) {
     return null;
   }
 
-  const queryVariants = [
+  const queryVariants = [];
+
+  if (normalizedBookId && !normalizedBookId.includes('::')) {
+    queryVariants.push(
+      {
+        text: `SELECT b.id AS book_id,
+                      b.title,
+                      b.price,
+                      bv.volume_number,
+                      COALESCE(bv.cover, '') AS cover
+               FROM books AS b
+               JOIN book_volumes AS bv ON bv.book_id = b.id
+               WHERE b.id = $1
+                 AND bv.volume_number = $2
+               LIMIT 1`,
+        params: [normalizedBookId, parsedVolume],
+        volumeField: 'volume_number',
+      },
+      {
+        text: `SELECT b.book_id AS book_id,
+                      b.title,
+                      b.price,
+                      bv.volume_number,
+                      COALESCE(bv.cover, '') AS cover
+               FROM books AS b
+               JOIN book_volumes AS bv ON bv.book_id = b.id
+               WHERE b.book_id = $1
+                 AND bv.volume_number = $2
+               LIMIT 1`,
+        params: [normalizedBookId, parsedVolume],
+        volumeField: 'volume_number',
+      },
+    );
+  }
+
+  queryVariants.push(
     {
       text: `SELECT b.id AS book_id,
                     b.title,
@@ -70,7 +105,7 @@ async function findCatalogItem({ bookId, bookTitle, volume }) {
       params: [requestedTitle, `Vol ${parsedVolume}`],
       volumeField: 'volume',
     },
-  ];
+  );
 
   let row = null;
   let selectedVolumeField = null;

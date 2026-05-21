@@ -62,6 +62,7 @@ const Book = {
 
   data() {
     return {
+      bookId: "",
       title: "",
       author: "",
       price: "",
@@ -111,6 +112,7 @@ const Book = {
 
           if (book && volume) {
             Object.assign(this, {
+              bookId: book.id || "",
               title: book.title,
               author: book.author,
               price: book.price,
@@ -153,6 +155,7 @@ const Book = {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
+          book_id: this.bookId,
           book_title: this.title,
           volume: this.volume,
           quantity: this.quantity,
