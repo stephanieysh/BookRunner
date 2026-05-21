@@ -296,7 +296,7 @@ const Product = {
             this.currentPage = 1;
 
             try {
-            const apiUrl = window.__APP_CONFIG__.getApiUrl("resources/api_books.php");
+            const apiUrl = window.__APP_CONFIG__.getApiUrl("api/books");
             const response = await fetch(apiUrl);
             if (!response.ok) throw new Error("Failed to load data");
 

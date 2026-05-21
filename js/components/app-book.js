@@ -102,7 +102,7 @@ const Book = {
 
   methods: {
     fetchBookDetails() {
-      const apiUrl = window.__APP_CONFIG__.getApiUrl("resources/api_books.php");
+      const apiUrl = window.__APP_CONFIG__.getApiUrl("api/books");
       fetch(apiUrl)
         .then((response) => response.json())
         .then((data) => {
@@ -139,7 +139,7 @@ const Book = {
     },
 
     addToCart() {
-      const cartApiURL = window.__APP_CONFIG__.getApiUrl("resources/api_cart.php");
+      const cartApiURL = window.__APP_CONFIG__.getApiUrl("api/cart");
       const token = this.authState?.user?.token;
       if (!this.authState?.isLoggedIn || !token) {
         this.$router.push("/login");

@@ -50,7 +50,7 @@ const Cart = {
     },
 
     fetchCart() {
-      const cartApiURL = window.__APP_CONFIG__.getApiUrl("resources/api_cart.php");
+      const cartApiURL = window.__APP_CONFIG__.getApiUrl("api/cart");
       const token = this.authState.user?.token;
       if (this.authState.isLoggedIn && token) {
         fetch(cartApiURL, {
@@ -101,7 +101,7 @@ const Cart = {
     },
 
     removeFromCart(id) {
-      const cartItemApiURL = window.__APP_CONFIG__.getApiUrl(`resources/api_cart.php/${id}`);
+      const cartItemApiURL = window.__APP_CONFIG__.getApiUrl(`api/cart/${id}`);
       const token = this.authState.user?.token;
       if (!token) {
         return;
@@ -133,7 +133,7 @@ const Cart = {
     },
 
     updateQuantity(item) {
-      const cartItemApiURL = window.__APP_CONFIG__.getApiUrl(`resources/api_cart.php/${item.id}`);
+      const cartItemApiURL = window.__APP_CONFIG__.getApiUrl(`api/cart/${item.id}`);
       const token = this.authState.user?.token;
       if (!token) {
         return;
@@ -180,7 +180,7 @@ const Cart = {
     },
 
     purchaseCart() {
-      const ordersApiURL = window.__APP_CONFIG__.getApiUrl("resources/api_orders.php");
+      const ordersApiURL = window.__APP_CONFIG__.getApiUrl("api/orders");
       const token = this.authState.user?.token;
 
       if (!this.authState.isLoggedIn || !token) {

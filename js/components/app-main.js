@@ -127,7 +127,7 @@ const Home = {
   },
 
   mounted() {
-    const apiUrl = window.__APP_CONFIG__.getApiUrl("resources/api_books.php");
+    const apiUrl = window.__APP_CONFIG__.getApiUrl("api/books");
     fetch(apiUrl)
       .then((res) => res.json())
       .then((data) => {

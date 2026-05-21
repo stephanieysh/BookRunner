@@ -13,7 +13,7 @@ const booksLimiter = rateLimit({
   message: { error: 'Too many requests, please try again later' },
 });
 
-router.get('/resources/api_books.php', booksLimiter, async (req, res) => {
+router.get('/api/books', booksLimiter, async (req, res) => {
   try {
     const result = await db.query(
       'SELECT book_id, title, author, genre, description, price, volume, cover, type, publisher, keywords, page_count, release_date FROM books ORDER BY title ASC, volume ASC'
