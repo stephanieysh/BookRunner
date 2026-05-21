@@ -129,8 +129,15 @@ const Home = {
   mounted() {
     const apiUrl = window.__APP_CONFIG__.getApiUrl("resources/api_books.php");
     fetch(apiUrl)
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to load data");
+        return res.json();
+      })
       .then((data) => {
+        if (!Array.isArray(data)) {
+          this.books = [];
+          throw new Error("Catalog response is not an array");
+        }
         this.books = data.filter(book =>
           Array.isArray(book.keywords) && book.keywords.some(k => k.toLowerCase() === this.keyword.toLowerCase())
         );
