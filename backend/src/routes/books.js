@@ -34,8 +34,11 @@ router.get('/resources/api_books.php', booksLimiter, async (req, res) => {
           volumes: [],
         };
       }
+      const rawVolume = String(row.volume ?? '');
+      const normalizedVolume = rawVolume.replace('Vol ', '').trim();
+      const parsedVolume = Number(normalizedVolume);
       grouped[row.title].volumes.push({
-        volumeNumber: Number(row.volume.replace('Vol ', '')),
+        volumeNumber: normalizedVolume !== '' && Number.isFinite(parsedVolume) ? parsedVolume : null,
         cover: row.cover,
         page_count: row.page_count,
         release_date: row.release_date,

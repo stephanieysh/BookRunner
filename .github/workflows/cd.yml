@@ -110,6 +110,7 @@ jobs:
           resourceGroup: ${{ secrets.ACA_RESOURCE_GROUP }}
           containerAppName: ${{ secrets.ACA_STAGING_BACKEND_APP }}
           imageToDeploy: ${{ env.BACKEND_IMAGE }}:${{ needs.build-and-push.outputs.image-tag }}
+          environmentVariables: DATABASE_URL=${{ secrets.STAGING_DATABASE_URL }} JWT_SECRET=${{ secrets.STAGING_JWT_SECRET }} FRONTEND_ORIGIN=${{ secrets.STAGING_FRONTEND_ORIGIN }}
 
       - name: Get staging backend URL
         run: |
@@ -162,6 +163,7 @@ jobs:
           resourceGroup: ${{ secrets.ACA_RESOURCE_GROUP }}
           containerAppName: ${{ secrets.ACA_PRODUCTION_BACKEND_APP }}
           imageToDeploy: ${{ env.BACKEND_IMAGE }}:${{ needs.build-and-push.outputs.image-tag }}
+          environmentVariables: DATABASE_URL=${{ secrets.PRODUCTION_DATABASE_URL }} JWT_SECRET=${{ secrets.PRODUCTION_JWT_SECRET }} FRONTEND_ORIGIN=${{ secrets.PRODUCTION_FRONTEND_ORIGIN }}
 
       - name: Get production backend URL
         run: |

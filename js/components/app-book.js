@@ -104,8 +104,14 @@ const Book = {
     fetchBookDetails() {
       const apiUrl = window.__APP_CONFIG__.getApiUrl("resources/api_books.php");
       fetch(apiUrl)
-        .then((response) => response.json())
+        .then((response) => {
+          if (!response.ok) throw new Error("Failed to load data");
+          return response.json();
+        })
         .then((data) => {
+          if (!Array.isArray(data)) {
+            throw new Error("Catalog response is not an array");
+          }
           const book = data.find((b) => b.title === this.title);
           const volume = book?.volumes.find((v) => v.volumeNumber == this.volume);
 

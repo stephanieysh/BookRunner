@@ -101,6 +101,37 @@ test('OPTIONS preflight rejects disallowed origins', async () => {
   });
 });
 
+test('GET /resources/api_books.php returns 200 when a row has null volume', async (t) => {
+  t.mock.method(db, 'query', async () => ({
+    rows: [{
+      book_id: 'book-1',
+      title: 'Solo Leveling',
+      author: 'Chugong',
+      genre: 'Action, Fantasy',
+      description: 'Desc',
+      price: '39.90',
+      volume: null,
+      cover: '/images/solo.jpg',
+      type: 'Manga',
+      publisher: 'Yen Press',
+      keywords: 'Bestsellers, Popular',
+      page_count: 200,
+      release_date: '2025-01-01',
+    }],
+  }));
+
+  await withServer(async (port) => {
+    const response = await fetch(`http://127.0.0.1:${port}/resources/api_books.php`);
+    const payload = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(Array.isArray(payload), true);
+    assert.equal(payload.length, 1);
+    assert.equal(payload[0].title, 'Solo Leveling');
+    assert.equal(payload[0].volumes[0].volumeNumber, null);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // POST /resources/api_user.php – input validation (no database required)
 // ---------------------------------------------------------------------------
