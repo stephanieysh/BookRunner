@@ -66,13 +66,28 @@ router.post('/resources/api_cart.php', cartLimiter, requireAuth, asyncHandler(as
   }
 
   const result = await db.query(
-    `INSERT INTO cart_items (user_id, book_id, title, volume, cover, unit_price, quantity)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
-     ON CONFLICT (user_id, book_id)
-     DO UPDATE SET
-       quantity = cart_items.quantity + EXCLUDED.quantity,
-       updated_at = NOW()
-     RETURNING ${CART_COLUMNS}`,
+    `WITH existing AS (
+       SELECT id
+       FROM cart_items
+       WHERE user_id = $1 AND book_id = $2
+       ORDER BY created_at DESC
+       LIMIT 1
+     ), updated AS (
+       UPDATE cart_items
+       SET
+         quantity = cart_items.quantity + $7,
+         updated_at = NOW()
+       WHERE id IN (SELECT id FROM existing)
+       RETURNING ${CART_COLUMNS}
+     ), inserted AS (
+       INSERT INTO cart_items (user_id, book_id, title, volume, cover, unit_price, quantity)
+       SELECT $1, $2, $3, $4, $5, $6, $7
+       WHERE NOT EXISTS (SELECT 1 FROM existing)
+       RETURNING ${CART_COLUMNS}
+     )
+     SELECT * FROM updated
+     UNION ALL
+     SELECT * FROM inserted`,
     [
       req.user.sub,
       catalogItem.bookId,

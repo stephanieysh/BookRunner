@@ -656,6 +656,7 @@ test('POST /resources/api_cart.php adds a cart item with server-derived catalog 
   assert.equal(calls.length, 2);
   assert.match(calls[0].sql, /SELECT[\s\S]*FROM books/i);
   assert.match(calls[1].sql, /INSERT INTO cart_items/);
+  assert.doesNotMatch(calls[1].sql, /ON CONFLICT/);
   assert.equal(calls[1].params[0], userId);
   assert.equal(calls[1].params[1], 'OP001');
   assert.equal(calls[1].params[2], 'One Piece');
