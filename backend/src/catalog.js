@@ -29,85 +29,41 @@ async function findCatalogItem({ bookId, bookTitle, volume }) {
     return null;
   }
 
-  const queryVariants = [];
+  let queryText = null;
+  let queryParams = null;
+  const selectedVolumeField = 'volume_number';
 
-  if (normalizedBookId && !normalizedBookId.includes('::')) {
-    queryVariants.push({
-      text: `SELECT b.id AS book_id,
-                    b.title,
-                    b.price,
-                    bv.volume_number,
-                    COALESCE(bv.cover, '') AS cover
-             FROM books AS b
-             JOIN book_volumes AS bv ON bv.book_id = b.id
-             WHERE b.id = $1
-               AND bv.volume_number = $2
-             LIMIT 1`,
-      params: [normalizedBookId, parsedVolume],
-      volumeField: 'volume_number',
-    });
+  if (normalizedBookId && !requestedTitle) {
+    queryText = `SELECT b.id AS book_id,
+                        b.title,
+                        b.price,
+                        bv.volume_number,
+                        COALESCE(bv.cover, '') AS cover
+                 FROM books AS b
+                 JOIN book_volumes AS bv ON bv.book_id = b.id
+                 WHERE b.id = $1
+                   AND bv.volume_number = $2
+                 LIMIT 1`;
+    queryParams = [normalizedBookId, parsedVolume];
+  } else {
+    queryText = `SELECT b.id AS book_id,
+                        b.title,
+                        b.price,
+                        bv.volume_number,
+                        COALESCE(bv.cover, '') AS cover
+                 FROM books AS b
+                 JOIN book_volumes AS bv ON bv.book_id = b.id
+                 WHERE LOWER(b.title) = LOWER($1)
+                   AND bv.volume_number = $2
+                   AND ($3 IS NULL OR b.id = $3)
+                 LIMIT 1`;
+    queryParams = [requestedTitle, parsedVolume, normalizedBookId];
   }
 
-  queryVariants.push({
-    text: `SELECT b.id AS book_id,
-                  b.title,
-                  b.price,
-                  bv.volume_number,
-                  COALESCE(bv.cover, b.cover, '') AS cover
-           FROM books AS b
-           JOIN book_volumes AS bv ON bv.book_id = b.id
-           WHERE LOWER(b.title) = LOWER($1)
-             AND bv.volume_number = $2
-           LIMIT 1`,
-    params: [requestedTitle, parsedVolume],
-    volumeField: 'volume_number',
-  });
-
-  queryVariants.push({
-    text: `SELECT b.id AS book_id,
-                  b.title,
-                  b.price,
-                  b.volume,
-                  COALESCE(b.cover, '') AS cover
-           FROM books AS b
-           WHERE LOWER(b.title) = LOWER($1)
-             AND b.volume = $2
-           LIMIT 1`,
-    params: [requestedTitle, String(parsedVolume)],
-    volumeField: 'volume',
-  });
-
-  queryVariants.push({
-    text: `SELECT b.id AS book_id,
-                  b.title,
-                  b.price,
-                  b.volume,
-                  COALESCE(b.cover, '') AS cover
-           FROM books AS b
-           WHERE LOWER(b.title) = LOWER($1)
-             AND b.volume = $2
-           LIMIT 1`,
-    params: [requestedTitle, `Vol ${parsedVolume}`],
-    volumeField: 'volume',
-  });
-
   let row = null;
-  let selectedVolumeField = null;
-
-  for (const variant of queryVariants) {
-    try {
-      const result = await db.query(variant.text, variant.params);
-      if (result.rows.length > 0) {
-        row = result.rows[0];
-        selectedVolumeField = variant.volumeField;
-        break;
-      }
-    } catch (error) {
-      if (error.code === '42703') {
-        continue;
-      }
-      throw error;
-    }
+  const result = await db.query(queryText, queryParams);
+  if (result.rows.length > 0) {
+    row = result.rows[0];
   }
 
   if (!row) {
