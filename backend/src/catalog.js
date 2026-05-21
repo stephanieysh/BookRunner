@@ -29,21 +29,68 @@ async function findCatalogItem({ bookId, bookTitle, volume }) {
     return null;
   }
 
-  const result = await db.query(
-    `SELECT b.id AS book_id,
-            b.title,
-            b.price,
-            bv.volume_number,
-            COALESCE(bv.cover, '') AS cover
-     FROM books AS b
-     JOIN book_volumes AS bv ON bv.book_id = b.id
-     WHERE LOWER(b.title) = LOWER($1)
-       AND bv.volume_number = $2
-     LIMIT 1`,
-    [requestedTitle, parsedVolume]
-  );
+  const queryVariants = [
+    {
+      text: `SELECT b.id AS book_id,
+                    b.title,
+                    b.price,
+                    bv.volume_number,
+                    COALESCE(bv.cover, '') AS cover
+             FROM books AS b
+             JOIN book_volumes AS bv ON bv.book_id = b.id
+             WHERE LOWER(b.title) = LOWER($1)
+               AND bv.volume_number = $2
+             LIMIT 1`,
+      params: [requestedTitle, parsedVolume],
+      volumeField: 'volume_number',
+    },
+    {
+      text: `SELECT b.id AS book_id,
+                    b.title,
+                    b.price,
+                    b.volume,
+                    COALESCE(b.cover, '') AS cover
+             FROM books AS b
+             WHERE LOWER(b.title) = LOWER($1)
+               AND b.volume = $2
+             LIMIT 1`,
+      params: [requestedTitle, String(parsedVolume)],
+      volumeField: 'volume',
+    },
+    {
+      text: `SELECT b.id AS book_id,
+                    b.title,
+                    b.price,
+                    b.volume,
+                    COALESCE(b.cover, '') AS cover
+             FROM books AS b
+             WHERE LOWER(b.title) = LOWER($1)
+               AND b.volume = $2
+             LIMIT 1`,
+      params: [requestedTitle, `Vol ${parsedVolume}`],
+      volumeField: 'volume',
+    },
+  ];
 
-  const row = result.rows[0];
+  let row = null;
+  let selectedVolumeField = null;
+
+  for (const variant of queryVariants) {
+    try {
+      const result = await db.query(variant.text, variant.params);
+      if (result.rows.length > 0) {
+        row = result.rows[0];
+        selectedVolumeField = variant.volumeField;
+        break;
+      }
+    } catch (error) {
+      if (error.code === '42703') {
+        continue;
+      }
+      throw error;
+    }
+  }
+
   if (!row) {
     return null;
   }
@@ -51,7 +98,7 @@ async function findCatalogItem({ bookId, bookTitle, volume }) {
   return {
     bookId: row.book_id,
     bookTitle: row.title,
-    volume: String(row.volume_number),
+    volume: String(row[selectedVolumeField] ?? parsedVolume),
     cover: row.cover,
     price: Number(row.price),
   };
