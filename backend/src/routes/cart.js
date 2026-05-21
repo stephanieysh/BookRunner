@@ -39,7 +39,25 @@ function normalizeQuantity(value) {
 
 router.get('/resources/api_cart.php', cartLimiter, requireAuth, asyncHandler(async (req, res) => {
   const result = await db.query(
-    `SELECT ${CART_COLUMNS} FROM cart_items WHERE user_id = $1 ORDER BY created_at DESC`,
+    `WITH consolidated AS (
+       SELECT
+         (ARRAY_AGG(id ORDER BY created_at DESC, id DESC))[1] AS id,
+         user_id,
+         book_id,
+         (ARRAY_AGG(title ORDER BY created_at DESC, id DESC))[1] AS title,
+         (ARRAY_AGG(volume ORDER BY created_at DESC, id DESC))[1] AS volume,
+         (ARRAY_AGG(cover ORDER BY created_at DESC, id DESC))[1] AS cover,
+         (ARRAY_AGG(unit_price ORDER BY created_at DESC, id DESC))[1] AS unit_price,
+         SUM(quantity)::INTEGER AS quantity,
+         MAX(created_at) AS created_at,
+         MAX(updated_at) AS updated_at
+       FROM cart_items
+       WHERE user_id = $1
+       GROUP BY user_id, book_id
+     )
+     SELECT ${CART_COLUMNS}
+     FROM consolidated
+     ORDER BY created_at DESC`,
     [req.user.sub],
   );
 
@@ -65,44 +83,74 @@ router.post('/resources/api_cart.php', cartLimiter, requireAuth, asyncHandler(as
     return res.status(404).json({ error: 'Book not found' });
   }
 
-  const result = await db.query(
-    `WITH lock AS (
-       SELECT pg_advisory_xact_lock(hashtext($1 || '::' || $2))
-     ), existing AS (
-       SELECT c.id
-       FROM cart_items c
-       CROSS JOIN lock
-       WHERE c.user_id = $1 AND c.book_id = $2
-       ORDER BY c.created_at DESC, c.id DESC
-       LIMIT 1
-     ), updated AS (
-       UPDATE cart_items
-       SET
-         quantity = cart_items.quantity + $7,
-         updated_at = NOW()
-       WHERE id IN (SELECT id FROM existing)
-       RETURNING ${CART_COLUMNS}
-     ), inserted AS (
-       INSERT INTO cart_items (user_id, book_id, title, volume, cover, unit_price, quantity)
-       SELECT $1, $2, $3, $4, $5, $6, $7
-       WHERE NOT EXISTS (SELECT 1 FROM existing)
-       RETURNING ${CART_COLUMNS}
-     )
-     SELECT * FROM updated
-     UNION ALL
-     SELECT * FROM inserted`,
-    [
-      req.user.sub,
-      catalogItem.bookId,
-      catalogItem.bookTitle,
-      catalogItem.volume,
-      catalogItem.cover,
-      catalogItem.price,
-      quantity,
-    ],
-  );
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      'SELECT pg_advisory_xact_lock(hashtext($1 || \'::\' || $2))',
+      [String(req.user.sub), String(catalogItem.bookId)],
+    );
 
-  return res.status(201).json(result.rows[0]);
+    const existingRows = await client.query(
+      `SELECT id, quantity
+       FROM cart_items
+       WHERE user_id = $1 AND book_id = $2
+       ORDER BY created_at DESC, id DESC
+       FOR UPDATE`,
+      [req.user.sub, catalogItem.bookId],
+    );
+
+    let result;
+    if (existingRows.rows.length > 0) {
+      const [keepRow, ...duplicateRows] = existingRows.rows;
+      const mergedQuantity = existingRows.rows.reduce(
+        (sum, row) => sum + Number(row.quantity),
+        0,
+      ) + quantity;
+
+      result = await client.query(
+        `UPDATE cart_items
+         SET quantity = $1, updated_at = NOW()
+         WHERE id = $2
+         RETURNING ${CART_COLUMNS}`,
+        [mergedQuantity, keepRow.id],
+      );
+
+      if (duplicateRows.length > 0) {
+        await client.query(
+          'DELETE FROM cart_items WHERE id = ANY($1::uuid[])',
+          [duplicateRows.map((row) => row.id)],
+        );
+      }
+    } else {
+      result = await client.query(
+        `INSERT INTO cart_items (user_id, book_id, title, volume, cover, unit_price, quantity)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING ${CART_COLUMNS}`,
+        [
+          req.user.sub,
+          catalogItem.bookId,
+          catalogItem.bookTitle,
+          catalogItem.volume,
+          catalogItem.cover,
+          catalogItem.price,
+          quantity,
+        ],
+      );
+    }
+
+    await client.query('COMMIT');
+    return res.status(201).json(result.rows[0]);
+  } catch (error) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      // no-op
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
 }));
 
 router.put('/resources/api_cart.php/:id', cartLimiter, requireAuth, asyncHandler(async (req, res) => {
