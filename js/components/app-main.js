@@ -136,7 +136,8 @@ const Home = {
       .then((data) => {
         if (!Array.isArray(data)) {
           this.books = [];
-          throw new Error("Catalog response is not an array");
+          console.error("Catalog response is not an array");
+          return;
         }
         this.books = data.filter(book =>
           Array.isArray(book.keywords) && book.keywords.some(k => k.toLowerCase() === this.keyword.toLowerCase())

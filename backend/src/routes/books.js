@@ -34,7 +34,7 @@ router.get('/resources/api_books.php', booksLimiter, async (req, res) => {
           volumes: [],
         };
       }
-      const rawVolume = row.volume == null ? '' : String(row.volume);
+      const rawVolume = row.volume === null || row.volume === undefined ? '' : String(row.volume);
       const normalizedVolume = rawVolume.replace(/^Vol\s*/i, '').trim();
       const parsedVolume = Number(normalizedVolume);
       grouped[row.title].volumes.push({
