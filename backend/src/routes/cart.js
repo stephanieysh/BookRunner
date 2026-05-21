@@ -49,10 +49,7 @@ router.get(
     }
 
     const result = await db.query(
-      `SELECT ${CART_COLUMNS}
-       FROM cart_items
-       WHERE user_id = $1
-       ORDER BY created_at DESC`,
+      `SELECT ${CART_COLUMNS} FROM cart_items WHERE user_id = $1 ORDER BY created_at DESC`,
       [req.user.sub]
     );
 
