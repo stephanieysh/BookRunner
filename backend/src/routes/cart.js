@@ -70,7 +70,7 @@ router.post('/resources/api_cart.php', cartLimiter, requireAuth, asyncHandler(as
        SELECT id
        FROM cart_items
        WHERE user_id = $1 AND book_id = $2
-       ORDER BY created_at DESC
+       ORDER BY created_at DESC, id DESC
        LIMIT 1
      ), updated AS (
        UPDATE cart_items
