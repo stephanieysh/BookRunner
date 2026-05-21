@@ -582,7 +582,9 @@ test('GET /resources/api_cart.php returns only the authenticated user cart', asy
   });
 
   assert.equal(calls.length, 1);
-  assert.match(calls[0].sql, /FROM cart_items WHERE user_id = \$1/);
+  assert.match(calls[0].sql, /FROM cart_items/);
+  assert.match(calls[0].sql, /GROUP BY user_id, book_id/);
+  assert.match(calls[0].sql, /SUM\(quantity\)/);
   assert.deepEqual(calls[0].params, [userId]);
 });
 
@@ -596,10 +598,11 @@ test('GET /resources/api_cart.php returns 401 without Authorization header', asy
 test('POST /resources/api_cart.php adds a cart item with server-derived catalog data', async (t) => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
-  const calls = [];
+  const catalogCalls = [];
+  const writeCalls = [];
 
   t.mock.method(db, 'query', async (sql, params) => {
-    calls.push({ sql, params });
+    catalogCalls.push({ sql, params });
     if (/SELECT[\s\S]*FROM books/i.test(sql)) {
       return {
         rows: [{
@@ -611,19 +614,39 @@ test('POST /resources/api_cart.php adds a cart item with server-derived catalog 
         }],
       };
     }
-    return {
-      rows: [{
-        id: 'cart-1',
-        user_id: params[0],
-        book_id: params[1],
-        book_title: params[2],
-        volume: params[3],
-        cover: params[4],
-        price: String(params[5]),
-        quantity: params[6],
-      }],
-    };
+    throw new Error(`Unexpected SQL: ${sql}`);
   });
+
+  t.mock.method(db, 'connect', async () => ({
+    query: async (sql, params) => {
+      writeCalls.push({ sql, params });
+      if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') {
+        return { rows: [], rowCount: null };
+      }
+      if (/SELECT pg_advisory_xact_lock/i.test(sql)) {
+        return { rows: [{ pg_advisory_xact_lock: null }] };
+      }
+      if (/SELECT id, quantity[\s\S]*FOR UPDATE/i.test(sql)) {
+        return { rows: [] };
+      }
+      if (/INSERT INTO cart_items/i.test(sql)) {
+        return {
+          rows: [{
+            id: 'cart-1',
+            user_id: params[0],
+            book_id: params[1],
+            book_title: params[2],
+            volume: params[3],
+            cover: params[4],
+            price: String(params[5]),
+            quantity: params[6],
+          }],
+        };
+      }
+      throw new Error(`Unexpected client SQL: ${sql}`);
+    },
+    release: () => {},
+  }));
 
   await withServer(async (port) => {
     const response = await fetch(`http://127.0.0.1:${port}/resources/api_cart.php`, {
@@ -653,14 +676,150 @@ test('POST /resources/api_cart.php adds a cart item with server-derived catalog 
     assert.equal(payload.quantity, 2);
   });
 
-  assert.equal(calls.length, 2);
-  assert.match(calls[0].sql, /SELECT[\s\S]*FROM books/i);
-  assert.match(calls[1].sql, /INSERT INTO cart_items/);
-  assert.equal(calls[1].params[0], userId);
-  assert.equal(calls[1].params[1], 'OP001');
-  assert.equal(calls[1].params[2], 'One Piece');
-  assert.equal(calls[1].params[4], 'images/one_piece_vol_1.jpg');
-  assert.equal(calls[1].params[5], 30);
+  assert.equal(catalogCalls.length, 1);
+  assert.match(catalogCalls[0].sql, /SELECT[\s\S]*FROM books/i);
+  assert.equal(writeCalls[0].sql, 'BEGIN');
+  assert.match(writeCalls[1].sql, /SELECT pg_advisory_xact_lock/i);
+  assert.match(writeCalls[2].sql, /SELECT id, quantity[\s\S]*FOR UPDATE/i);
+  assert.match(writeCalls[3].sql, /INSERT INTO cart_items/);
+  assert.doesNotMatch(writeCalls[3].sql, /ON CONFLICT/);
+  assert.equal(writeCalls[3].params[0], userId);
+  assert.equal(writeCalls[3].params[1], 'OP001');
+  assert.equal(writeCalls[3].params[2], 'One Piece');
+  assert.equal(writeCalls[3].params[4], 'images/one_piece_vol_1.jpg');
+  assert.equal(writeCalls[3].params[5], 30);
+  assert.equal(writeCalls[4].sql, 'COMMIT');
+});
+
+test('POST /resources/api_cart.php serializes concurrent writes for the same cart key', async (t) => {
+  const userId = 'user-uuid-1';
+  const token = makeToken(userId);
+  const rowState = [];
+  let lockHeld = false;
+  let lockReleased = Promise.resolve();
+  let nextId = 1;
+
+  t.mock.method(db, 'query', async (sql) => {
+    if (/SELECT[\s\S]*FROM books/i.test(sql)) {
+      return {
+        rows: [{
+          book_id: 'OP001',
+          title: 'One Piece',
+          volume: 'Vol 1',
+          cover: 'images/one_piece_vol_1.jpg',
+          price: 30,
+        }],
+      };
+    }
+    throw new Error(`Unexpected SQL: ${sql}`);
+  });
+
+  t.mock.method(db, 'connect', async () => {
+    let releaseLock = null;
+    return {
+      query: async (sql, params) => {
+        if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') {
+          if ((sql === 'COMMIT' || sql === 'ROLLBACK') && releaseLock) {
+            releaseLock();
+            releaseLock = null;
+          }
+          return { rows: [], rowCount: null };
+        }
+
+        if (/SELECT pg_advisory_xact_lock/i.test(sql)) {
+          while (lockHeld) {
+            await lockReleased;
+          }
+          lockHeld = true;
+          lockReleased = new Promise((resolve) => {
+            releaseLock = () => {
+              lockHeld = false;
+              resolve();
+            };
+          });
+          return { rows: [{ pg_advisory_xact_lock: null }] };
+        }
+
+        if (/SELECT id, quantity[\s\S]*FOR UPDATE/i.test(sql)) {
+          return {
+            rows: rowState
+              .filter((row) => row.user_id === params[0] && row.book_id === params[1])
+              .sort((a, b) => b.created_at - a.created_at || b.id.localeCompare(a.id))
+              .map((row) => ({ id: row.id, quantity: row.quantity })),
+          };
+        }
+
+        if (/INSERT INTO cart_items/i.test(sql)) {
+          const row = {
+            id: `cart-${nextId++}`,
+            user_id: params[0],
+            book_id: params[1],
+            book_title: params[2],
+            volume: params[3],
+            cover: params[4],
+            price: String(params[5]),
+            quantity: params[6],
+            created_at: new Date(`2026-01-01T00:00:0${nextId}Z`),
+          };
+          rowState.push(row);
+          return { rows: [row] };
+        }
+
+        if (/UPDATE cart_items/i.test(sql)) {
+          const row = rowState.find((item) => item.id === params[1]);
+          row.quantity = params[0];
+          return { rows: [row] };
+        }
+
+        if (/DELETE FROM cart_items/i.test(sql)) {
+          return { rows: [], rowCount: 0 };
+        }
+
+        throw new Error(`Unexpected client SQL: ${sql}`);
+      },
+      release: () => {
+        if (releaseLock) {
+          releaseLock();
+          releaseLock = null;
+        }
+      },
+    };
+  });
+
+  await withServer(async (port) => {
+    const [first, second] = await Promise.all([
+      fetch(`http://127.0.0.1:${port}/resources/api_cart.php`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          book_title: 'One Piece',
+          volume: '1',
+          quantity: 2,
+        }),
+      }),
+      fetch(`http://127.0.0.1:${port}/resources/api_cart.php`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          book_title: 'One Piece',
+          volume: '1',
+          quantity: 3,
+        }),
+      }),
+    ]);
+
+    assert.equal(first.status, 201);
+    assert.equal(second.status, 201);
+  });
+
+  assert.equal(rowState.length, 1);
+  assert.equal(rowState[0].quantity, 5);
 });
 
 test('POST /resources/api_cart.php returns 404 when the catalog item does not exist', async (t) => {
@@ -686,6 +845,154 @@ test('POST /resources/api_cart.php returns 404 when the catalog item does not ex
 
     assert.equal(response.status, 404);
   });
+});
+
+test('POST /resources/api_cart.php increments quantity for existing cart rows', async (t) => {
+  const token = makeToken('user-uuid-1');
+  const catalogCalls = [];
+  const writeCalls = [];
+
+  t.mock.method(db, 'query', async (sql, params) => {
+    catalogCalls.push({ sql, params });
+
+    if (/SELECT[\s\S]*FROM books/i.test(sql)) {
+      return {
+        rows: [{
+          book_id: 'OP001',
+          title: 'One Piece',
+          volume: 'Vol 1',
+          cover: 'images/one_piece_vol_1.jpg',
+          price: 30,
+        }],
+      };
+    }
+
+    throw new Error(`Unexpected SQL: ${sql}`);
+  });
+
+  t.mock.method(db, 'connect', async () => ({
+    query: async (sql, params) => {
+      writeCalls.push({ sql, params });
+      if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') {
+        return { rows: [], rowCount: null };
+      }
+      if (/SELECT pg_advisory_xact_lock/i.test(sql)) {
+        return { rows: [{ pg_advisory_xact_lock: null }] };
+      }
+      if (/SELECT id, quantity[\s\S]*FOR UPDATE/i.test(sql)) {
+        return {
+          rows: [
+            { id: 'cart-2', quantity: 3 },
+            { id: 'cart-1', quantity: 2 },
+          ],
+        };
+      }
+      if (/UPDATE cart_items/i.test(sql)) {
+        return {
+          rows: [{
+            id: 'cart-2',
+            user_id: 'user-uuid-1',
+            book_id: 'OP001',
+            book_title: 'One Piece',
+            volume: '1',
+            cover: 'images/one_piece_vol_1.jpg',
+            price: '30',
+            quantity: params[0],
+          }],
+        };
+      }
+      if (/DELETE FROM cart_items/i.test(sql)) {
+        return { rowCount: 1, rows: [] };
+      }
+      throw new Error(`Unexpected client SQL: ${sql}`);
+    },
+    release: () => {},
+  }));
+
+  await withServer(async (port) => {
+    const response = await fetch(`http://127.0.0.1:${port}/resources/api_cart.php`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        book_title: 'One Piece',
+        volume: '1',
+        quantity: 2,
+      }),
+    });
+
+    assert.equal(response.status, 201);
+    const payload = await response.json();
+    assert.equal(payload.quantity, 7);
+  });
+
+  assert.equal(catalogCalls.length, 1);
+  assert.equal(writeCalls[0].sql, 'BEGIN');
+  assert.match(writeCalls[2].sql, /SELECT id, quantity[\s\S]*FOR UPDATE/i);
+  assert.match(writeCalls[3].sql, /UPDATE cart_items/);
+  assert.equal(writeCalls[3].params[0], 7);
+  assert.match(writeCalls[4].sql, /DELETE FROM cart_items/);
+  assert.deepEqual(writeCalls[4].params, [['cart-1']]);
+  assert.equal(writeCalls[5].sql, 'COMMIT');
+});
+
+test('POST /resources/api_cart.php returns 500 when cart write fails', async (t) => {
+  const token = makeToken('user-uuid-1');
+  const calls = [];
+
+  t.mock.method(db, 'query', async (sql, params) => {
+    calls.push({ sql, params });
+
+    if (/SELECT[\s\S]*FROM books/i.test(sql)) {
+      return {
+        rows: [{
+          book_id: 'OP001',
+          title: 'One Piece',
+          volume: 'Vol 1',
+          cover: 'images/one_piece_vol_1.jpg',
+          price: 30,
+        }],
+      };
+    }
+
+    throw new Error(`Unexpected SQL: ${sql}`);
+  });
+
+  t.mock.method(db, 'connect', async () => ({
+    query: async (sql, params) => {
+      calls.push({ sql, params });
+      if (sql === 'BEGIN' || sql === 'ROLLBACK') {
+        return { rows: [], rowCount: null };
+      }
+      if (/SELECT pg_advisory_xact_lock/i.test(sql)) {
+        throw new Error('cart write failed');
+      }
+      throw new Error(`Unexpected client SQL: ${sql}`);
+    },
+    release: () => {},
+  }));
+
+  await withServer(async (port) => {
+    const response = await fetch(`http://127.0.0.1:${port}/resources/api_cart.php`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        book_title: 'One Piece',
+        volume: '1',
+        quantity: 1,
+      }),
+    });
+
+    assert.equal(response.status, 500);
+  });
+
+  assert.ok(calls.some((call) => call.sql === 'BEGIN'));
+  assert.ok(calls.some((call) => call.sql === 'ROLLBACK'));
 });
 
 test('PUT /resources/api_cart.php/:id updates an owned cart item', async (t) => {
