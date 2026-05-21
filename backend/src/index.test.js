@@ -65,7 +65,7 @@ test('GET /health sets CORS headers for allowed origin', async () => {
 
 test('OPTIONS preflight allows configured origin and auth/content-type headers', async () => {
   await withServer(async (port) => {
-    const response = await fetch(`http://127.0.0.1:${port}/resources/api_user.php`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/users`, {
       method: 'OPTIONS',
       headers: {
         Origin: 'https://frontend.example.com',
@@ -88,7 +88,7 @@ test('OPTIONS preflight allows configured origin and auth/content-type headers',
 
 test('OPTIONS preflight rejects disallowed origins', async () => {
   await withServer(async (port) => {
-    const response = await fetch(`http://127.0.0.1:${port}/resources/api_user.php`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/users`, {
       method: 'OPTIONS',
       headers: {
         Origin: 'https://malicious.example.com',
@@ -133,13 +133,13 @@ test('GET /resources/api_books.php returns 200 when a row has null volume', asyn
 });
 
 // ---------------------------------------------------------------------------
-// POST /resources/api_user.php – input validation (no database required)
+// POST /api/users – input validation (no database required)
 // ---------------------------------------------------------------------------
 
-test('POST /resources/api_user.php returns 400 when body is empty', async () => {
+test('POST /api/users returns 400 when body is empty', async () => {
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php`,
+      `http://127.0.0.1:${port}/api/users`,
       { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' },
     );
     assert.equal(response.status, 400);
@@ -148,10 +148,10 @@ test('POST /resources/api_user.php returns 400 when body is empty', async () => 
   });
 });
 
-test('POST /resources/api_user.php returns 400 when password is missing', async () => {
+test('POST /api/users returns 400 when password is missing', async () => {
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php`,
+      `http://127.0.0.1:${port}/api/users`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -162,10 +162,10 @@ test('POST /resources/api_user.php returns 400 when password is missing', async 
   });
 });
 
-test('POST /resources/api_user.php returns 400 when email is missing', async () => {
+test('POST /api/users returns 400 when email is missing', async () => {
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php`,
+      `http://127.0.0.1:${port}/api/users`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -176,10 +176,10 @@ test('POST /resources/api_user.php returns 400 when email is missing', async () 
   });
 });
 
-test('POST /resources/api_user.php returns 400 when name is present but empty (registration)', async () => {
+test('POST /api/users returns 400 when name is present but empty (registration)', async () => {
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php`,
+      `http://127.0.0.1:${port}/api/users`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -193,10 +193,10 @@ test('POST /resources/api_user.php returns 400 when name is present but empty (r
 });
 
 // ---------------------------------------------------------------------------
-// POST /resources/api_user.php – registration (mocked db)
+// POST /api/users – registration (mocked db)
 // ---------------------------------------------------------------------------
 
-test('POST /resources/api_user.php registers a new user successfully', async (t) => {
+test('POST /api/users registers a new user successfully', async (t) => {
   t.mock.method(db, 'query', async (sql) => {
     // Email-check SELECT returns empty; INSERT returns nothing meaningful
     if (sql.includes('SELECT')) return { rows: [] };
@@ -205,7 +205,7 @@ test('POST /resources/api_user.php registers a new user successfully', async (t)
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php`,
+      `http://127.0.0.1:${port}/api/users`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -218,14 +218,14 @@ test('POST /resources/api_user.php registers a new user successfully', async (t)
   });
 });
 
-test('POST /resources/api_user.php returns 409 when email already registered', async (t) => {
+test('POST /api/users returns 409 when email already registered', async (t) => {
   t.mock.method(db, 'query', async () => {
     return { rows: [{ id: 'existing-id' }] };
   });
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php`,
+      `http://127.0.0.1:${port}/api/users`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -239,10 +239,10 @@ test('POST /resources/api_user.php returns 409 when email already registered', a
 });
 
 // ---------------------------------------------------------------------------
-// POST /resources/api_user.php – login (mocked db)
+// POST /api/users – login (mocked db)
 // ---------------------------------------------------------------------------
 
-test('POST /resources/api_user.php logs in and returns a JWT', async (t) => {
+test('POST /api/users logs in and returns a JWT', async (t) => {
   const bcrypt = require('bcryptjs');
   const hash = await bcrypt.hash('correctpassword', 4); // low rounds for speed
 
@@ -252,7 +252,7 @@ test('POST /resources/api_user.php logs in and returns a JWT', async (t) => {
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php`,
+      `http://127.0.0.1:${port}/api/users`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -271,7 +271,7 @@ test('POST /resources/api_user.php logs in and returns a JWT', async (t) => {
   });
 });
 
-test('POST /resources/api_user.php returns 401 for wrong password', async (t) => {
+test('POST /api/users returns 401 for wrong password', async (t) => {
   const bcrypt = require('bcryptjs');
   const hash = await bcrypt.hash('correctpassword', 4);
 
@@ -281,7 +281,7 @@ test('POST /resources/api_user.php returns 401 for wrong password', async (t) =>
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php`,
+      `http://127.0.0.1:${port}/api/users`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -292,12 +292,12 @@ test('POST /resources/api_user.php returns 401 for wrong password', async (t) =>
   });
 });
 
-test('POST /resources/api_user.php returns 401 when user not found', async (t) => {
+test('POST /api/users returns 401 when user not found', async (t) => {
   t.mock.method(db, 'query', async () => ({ rows: [] }));
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php`,
+      `http://127.0.0.1:${port}/api/users`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -308,14 +308,14 @@ test('POST /resources/api_user.php returns 401 when user not found', async (t) =
   });
 });
 
-test('POST /resources/api_user.php returns JSON 500 when database query fails', async (t) => {
+test('POST /api/users returns JSON 500 when database query fails', async (t) => {
   t.mock.method(db, 'query', async () => {
     throw new Error('database unavailable');
   });
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php`,
+      `http://127.0.0.1:${port}/api/users`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -330,22 +330,22 @@ test('POST /resources/api_user.php returns JSON 500 when database query fails', 
 });
 
 // ---------------------------------------------------------------------------
-// GET /resources/api_user.php/id/:id – auth required (no database required)
+// GET /api/users/id/:id – auth required (no database required)
 // ---------------------------------------------------------------------------
 
-test('GET /resources/api_user.php/id/:id returns 401 without Authorization header', async () => {
+test('GET /api/users/id/:id returns 401 without Authorization header', async () => {
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php/id/some-uuid`,
+      `http://127.0.0.1:${port}/api/users/id/some-uuid`,
     );
     assert.equal(response.status, 401);
   });
 });
 
-test('GET /resources/api_user.php/id/:id returns 401 with invalid token', async () => {
+test('GET /api/users/id/:id returns 401 with invalid token', async () => {
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php/id/some-uuid`,
+      `http://127.0.0.1:${port}/api/users/id/some-uuid`,
       { headers: { Authorization: 'Bearer not-a-valid-jwt' } },
     );
     assert.equal(response.status, 401);
@@ -353,22 +353,22 @@ test('GET /resources/api_user.php/id/:id returns 401 with invalid token', async 
 });
 
 // ---------------------------------------------------------------------------
-// GET /resources/api_user.php/id/:id – authenticated profile fetch (mocked db)
+// GET /api/users/id/:id – authenticated profile fetch (mocked db)
 // ---------------------------------------------------------------------------
 
-test('GET /resources/api_user.php/id/:id returns 403 when token user != path user', async () => {
+test('GET /api/users/id/:id returns 403 when token user != path user', async () => {
   const token = makeToken('other-uuid');
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php/id/target-uuid`,
+      `http://127.0.0.1:${port}/api/users/id/target-uuid`,
       { headers: { Authorization: `Bearer ${token}` } },
     );
     assert.equal(response.status, 403);
   });
 });
 
-test('GET /resources/api_user.php/id/:id returns 200 with own profile', async (t) => {
+test('GET /api/users/id/:id returns 200 with own profile', async (t) => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
 
@@ -378,7 +378,7 @@ test('GET /resources/api_user.php/id/:id returns 200 with own profile', async (t
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php/id/${userId}`,
+      `http://127.0.0.1:${port}/api/users/id/${userId}`,
       { headers: { Authorization: `Bearer ${token}` } },
     );
     assert.equal(response.status, 200);
@@ -388,7 +388,7 @@ test('GET /resources/api_user.php/id/:id returns 200 with own profile', async (t
   });
 });
 
-test('GET /resources/api_user.php/id/:id returns 404 when user not found', async (t) => {
+test('GET /api/users/id/:id returns 404 when user not found', async (t) => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
 
@@ -396,7 +396,7 @@ test('GET /resources/api_user.php/id/:id returns 404 when user not found', async
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php/id/${userId}`,
+      `http://127.0.0.1:${port}/api/users/id/${userId}`,
       { headers: { Authorization: `Bearer ${token}` } },
     );
     assert.equal(response.status, 404);
@@ -404,13 +404,13 @@ test('GET /resources/api_user.php/id/:id returns 404 when user not found', async
 });
 
 // ---------------------------------------------------------------------------
-// PUT /resources/api_user.php/id/:id – auth required (no database required)
+// PUT /api/users/id/:id – auth required (no database required)
 // ---------------------------------------------------------------------------
 
-test('PUT /resources/api_user.php/id/:id returns 401 without Authorization header', async () => {
+test('PUT /api/users/id/:id returns 401 without Authorization header', async () => {
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php/id/some-uuid`,
+      `http://127.0.0.1:${port}/api/users/id/some-uuid`,
       {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -421,10 +421,10 @@ test('PUT /resources/api_user.php/id/:id returns 401 without Authorization heade
   });
 });
 
-test('PUT /resources/api_user.php/id/:id returns 401 with invalid token', async () => {
+test('PUT /api/users/id/:id returns 401 with invalid token', async () => {
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php/id/some-uuid`,
+      `http://127.0.0.1:${port}/api/users/id/some-uuid`,
       {
         method: 'PUT',
         headers: {
@@ -439,16 +439,16 @@ test('PUT /resources/api_user.php/id/:id returns 401 with invalid token', async 
 });
 
 // ---------------------------------------------------------------------------
-// PUT /resources/api_user.php/id/:id – profile update (mocked db)
+// PUT /api/users/id/:id – profile update (mocked db)
 // ---------------------------------------------------------------------------
 
-test('PUT /resources/api_user.php/id/:id returns 400 for empty name', async () => {
+test('PUT /api/users/id/:id returns 400 for empty name', async () => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php/id/${userId}`,
+      `http://127.0.0.1:${port}/api/users/id/${userId}`,
       {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -459,13 +459,13 @@ test('PUT /resources/api_user.php/id/:id returns 400 for empty name', async () =
   });
 });
 
-test('PUT /resources/api_user.php/id/:id returns 400 when no fields provided', async () => {
+test('PUT /api/users/id/:id returns 400 when no fields provided', async () => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php/id/${userId}`,
+      `http://127.0.0.1:${port}/api/users/id/${userId}`,
       {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -476,7 +476,7 @@ test('PUT /resources/api_user.php/id/:id returns 400 when no fields provided', a
   });
 });
 
-test('PUT /resources/api_user.php/id/:id updates name successfully', async (t) => {
+test('PUT /api/users/id/:id updates name successfully', async (t) => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
 
@@ -484,7 +484,7 @@ test('PUT /resources/api_user.php/id/:id updates name successfully', async (t) =
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php/id/${userId}`,
+      `http://127.0.0.1:${port}/api/users/id/${userId}`,
       {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -498,7 +498,7 @@ test('PUT /resources/api_user.php/id/:id updates name successfully', async (t) =
   });
 });
 
-test('PUT /resources/api_user.php/id/:id returns 404 when user not found', async (t) => {
+test('PUT /api/users/id/:id returns 404 when user not found', async (t) => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
 
@@ -506,7 +506,7 @@ test('PUT /resources/api_user.php/id/:id returns 404 when user not found', async
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php/id/${userId}`,
+      `http://127.0.0.1:${port}/api/users/id/${userId}`,
       {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -517,7 +517,7 @@ test('PUT /resources/api_user.php/id/:id returns 404 when user not found', async
   });
 });
 
-test('PUT /resources/api_user.php/id/:id returns 409 when new email already in use', async (t) => {
+test('PUT /api/users/id/:id returns 409 when new email already in use', async (t) => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
 
@@ -525,7 +525,7 @@ test('PUT /resources/api_user.php/id/:id returns 409 when new email already in u
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php/id/${userId}`,
+      `http://127.0.0.1:${port}/api/users/id/${userId}`,
       {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -536,13 +536,13 @@ test('PUT /resources/api_user.php/id/:id returns 409 when new email already in u
   });
 });
 
-test('PUT /resources/api_user.php/id/:id returns 400 for short password', async () => {
+test('PUT /api/users/id/:id returns 400 for short password', async () => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php/id/${userId}`,
+      `http://127.0.0.1:${port}/api/users/id/${userId}`,
       {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -553,7 +553,7 @@ test('PUT /resources/api_user.php/id/:id returns 400 for short password', async 
   });
 });
 
-test('PUT /resources/api_user.php/id/:id updates password successfully', async (t) => {
+test('PUT /api/users/id/:id updates password successfully', async (t) => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
 
@@ -561,7 +561,7 @@ test('PUT /resources/api_user.php/id/:id updates password successfully', async (
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php/id/${userId}`,
+      `http://127.0.0.1:${port}/api/users/id/${userId}`,
       {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -575,10 +575,10 @@ test('PUT /resources/api_user.php/id/:id updates password successfully', async (
 });
 
 // ---------------------------------------------------------------------------
-// /resources/api_cart.php – authenticated cart operations (mocked db)
+// /api/cart – authenticated cart operations (mocked db)
 // ---------------------------------------------------------------------------
 
-test('GET /resources/api_cart.php returns only the authenticated user cart', async (t) => {
+test('GET /api/cart returns only the authenticated user cart', async (t) => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
   const calls = [];
@@ -601,7 +601,7 @@ test('GET /resources/api_cart.php returns only the authenticated user cart', asy
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_cart.php?user_id=other-user`,
+      `http://127.0.0.1:${port}/api/cart?user_id=other-user`,
       { headers: { Authorization: `Bearer ${token}` } },
     );
     assert.equal(response.status, 200);
@@ -619,14 +619,14 @@ test('GET /resources/api_cart.php returns only the authenticated user cart', asy
   assert.deepEqual(calls[0].params, [userId]);
 });
 
-test('GET /resources/api_cart.php returns 401 without Authorization header', async () => {
+test('GET /api/cart returns 401 without Authorization header', async () => {
   await withServer(async (port) => {
-    const response = await fetch(`http://127.0.0.1:${port}/resources/api_cart.php`);
+    const response = await fetch(`http://127.0.0.1:${port}/api/cart`);
     assert.equal(response.status, 401);
   });
 });
 
-test('POST /resources/api_cart.php adds a cart item with server-derived catalog data', async (t) => {
+test('POST /api/cart adds a cart item with server-derived catalog data', async (t) => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
   const catalogCalls = [];
@@ -680,7 +680,7 @@ test('POST /resources/api_cart.php adds a cart item with server-derived catalog 
   }));
 
   await withServer(async (port) => {
-    const response = await fetch(`http://127.0.0.1:${port}/resources/api_cart.php`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/cart`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -722,7 +722,7 @@ test('POST /resources/api_cart.php adds a cart item with server-derived catalog 
   assert.equal(writeCalls[4].sql, 'COMMIT');
 });
 
-test('POST /resources/api_cart.php serializes concurrent writes for the same cart key', async (t) => {
+test('POST /api/cart serializes concurrent writes for the same cart key', async (t) => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
   const rowState = [];
@@ -819,7 +819,7 @@ test('POST /resources/api_cart.php serializes concurrent writes for the same car
 
   await withServer(async (port) => {
     const [first, second] = await Promise.all([
-      fetch(`http://127.0.0.1:${port}/resources/api_cart.php`, {
+      fetch(`http://127.0.0.1:${port}/api/cart`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -831,7 +831,7 @@ test('POST /resources/api_cart.php serializes concurrent writes for the same car
           quantity: 2,
         }),
       }),
-      fetch(`http://127.0.0.1:${port}/resources/api_cart.php`, {
+      fetch(`http://127.0.0.1:${port}/api/cart`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -853,7 +853,7 @@ test('POST /resources/api_cart.php serializes concurrent writes for the same car
   assert.equal(rowState[0].quantity, 5);
 });
 
-test('POST /resources/api_cart.php returns 404 when the catalog item does not exist', async (t) => {
+test('POST /api/cart returns 404 when the catalog item does not exist', async (t) => {
   const token = makeToken('user-uuid-1');
 
   t.mock.method(db, 'query', async () => {
@@ -861,7 +861,7 @@ test('POST /resources/api_cart.php returns 404 when the catalog item does not ex
   });
 
   await withServer(async (port) => {
-    const response = await fetch(`http://127.0.0.1:${port}/resources/api_cart.php`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/cart`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -878,7 +878,7 @@ test('POST /resources/api_cart.php returns 404 when the catalog item does not ex
   });
 });
 
-test('POST /resources/api_cart.php increments quantity for existing cart rows', async (t) => {
+test('POST /api/cart increments quantity for existing cart rows', async (t) => {
   const token = makeToken('user-uuid-1');
   const catalogCalls = [];
   const writeCalls = [];
@@ -941,7 +941,7 @@ test('POST /resources/api_cart.php increments quantity for existing cart rows', 
   }));
 
   await withServer(async (port) => {
-    const response = await fetch(`http://127.0.0.1:${port}/resources/api_cart.php`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/cart`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -969,7 +969,7 @@ test('POST /resources/api_cart.php increments quantity for existing cart rows', 
   assert.equal(writeCalls[5].sql, 'COMMIT');
 });
 
-test('POST /resources/api_cart.php returns 500 when cart write fails', async (t) => {
+test('POST /api/cart returns 500 when cart write fails', async (t) => {
   const token = makeToken('user-uuid-1');
   const calls = [];
 
@@ -1006,7 +1006,7 @@ test('POST /resources/api_cart.php returns 500 when cart write fails', async (t)
   }));
 
   await withServer(async (port) => {
-    const response = await fetch(`http://127.0.0.1:${port}/resources/api_cart.php`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/cart`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1026,7 +1026,7 @@ test('POST /resources/api_cart.php returns 500 when cart write fails', async (t)
   assert.ok(calls.some((call) => call.sql === 'ROLLBACK'));
 });
 
-test('PUT /resources/api_cart.php/:id updates an owned cart item', async (t) => {
+test('PUT /api/cart/:id updates an owned cart item', async (t) => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
 
@@ -1044,7 +1044,7 @@ test('PUT /resources/api_cart.php/:id updates an owned cart item', async (t) => 
   }));
 
   await withServer(async (port) => {
-    const response = await fetch(`http://127.0.0.1:${port}/resources/api_cart.php/cart-1`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/cart/cart-1`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -1060,13 +1060,13 @@ test('PUT /resources/api_cart.php/:id updates an owned cart item', async (t) => 
   });
 });
 
-test('PUT /resources/api_cart.php/:id returns 404 for another user cart item', async (t) => {
+test('PUT /api/cart/:id returns 404 for another user cart item', async (t) => {
   const token = makeToken('user-uuid-1');
 
   t.mock.method(db, 'query', async () => ({ rows: [], rowCount: 0 }));
 
   await withServer(async (port) => {
-    const response = await fetch(`http://127.0.0.1:${port}/resources/api_cart.php/cart-1`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/cart/cart-1`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -1079,13 +1079,13 @@ test('PUT /resources/api_cart.php/:id returns 404 for another user cart item', a
   });
 });
 
-test('DELETE /resources/api_cart.php/:id deletes an owned cart item', async (t) => {
+test('DELETE /api/cart/:id deletes an owned cart item', async (t) => {
   const token = makeToken('user-uuid-1');
 
   t.mock.method(db, 'query', async () => ({ rowCount: 1 }));
 
   await withServer(async (port) => {
-    const response = await fetch(`http://127.0.0.1:${port}/resources/api_cart.php/cart-1`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/cart/cart-1`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -1098,13 +1098,13 @@ test('DELETE /resources/api_cart.php/:id deletes an owned cart item', async (t) 
   });
 });
 
-test('DELETE /resources/api_cart.php/:id returns 404 for another user cart item', async (t) => {
+test('DELETE /api/cart/:id returns 404 for another user cart item', async (t) => {
   const token = makeToken('user-uuid-1');
 
   t.mock.method(db, 'query', async () => ({ rowCount: 0 }));
 
   await withServer(async (port) => {
-    const response = await fetch(`http://127.0.0.1:${port}/resources/api_cart.php/cart-1`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/cart/cart-1`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -1114,12 +1114,12 @@ test('DELETE /resources/api_cart.php/:id returns 404 for another user cart item'
 });
 
 // ---------------------------------------------------------------------------
-// /resources/api_orders.php – authenticated checkout from owned cart items
+// /api/orders – authenticated checkout from owned cart items
 // ---------------------------------------------------------------------------
 
-test('POST /resources/api_orders.php returns 401 without Authorization header', async () => {
+test('POST /api/orders returns 401 without Authorization header', async () => {
   await withServer(async (port) => {
-    const response = await fetch(`http://127.0.0.1:${port}/resources/api_orders.php`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/orders`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ cart_item_ids: ['11111111-1111-4111-8111-111111111111'] }),
@@ -1129,7 +1129,7 @@ test('POST /resources/api_orders.php returns 401 without Authorization header', 
   });
 });
 
-test('POST /resources/api_orders.php creates an order from owned cart items only', async (t) => {
+test('POST /api/orders creates an order from owned cart items only', async (t) => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
   const cartItemId = '11111111-1111-4111-8111-111111111111';
@@ -1176,7 +1176,7 @@ test('POST /resources/api_orders.php creates an order from owned cart items only
   });
 
   await withServer(async (port) => {
-    const response = await fetch(`http://127.0.0.1:${port}/resources/api_orders.php`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/orders`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1202,7 +1202,7 @@ test('POST /resources/api_orders.php creates an order from owned cart items only
   assert.equal(calls[2].params[1], 60);
 });
 
-test('POST /resources/api_orders.php returns 404 when any cart item is not owned by the user', async (t) => {
+test('POST /api/orders returns 404 when any cart item is not owned by the user', async (t) => {
   const token = makeToken('user-uuid-1');
   const cartItemId = '11111111-1111-4111-8111-111111111111';
   const calls = [];
@@ -1222,7 +1222,7 @@ test('POST /resources/api_orders.php returns 404 when any cart item is not owned
   });
 
   await withServer(async (port) => {
-    const response = await fetch(`http://127.0.0.1:${port}/resources/api_orders.php`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/orders`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1238,7 +1238,7 @@ test('POST /resources/api_orders.php returns 404 when any cart item is not owned
   assert.equal(calls[2].sql, 'ROLLBACK');
 });
 
-test('POST /resources/api_orders.php rolls back and returns 500 when inserting order items fails', async (t) => {
+test('POST /api/orders rolls back and returns 500 when inserting order items fails', async (t) => {
   const token = makeToken('user-uuid-1');
   const cartItemId = '11111111-1111-4111-8111-111111111111';
   const calls = [];
@@ -1278,7 +1278,7 @@ test('POST /resources/api_orders.php rolls back and returns 500 when inserting o
   });
 
   await withServer(async (port) => {
-    const response = await fetch(`http://127.0.0.1:${port}/resources/api_orders.php`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/orders`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1296,7 +1296,7 @@ test('POST /resources/api_orders.php rolls back and returns 500 when inserting o
   assert.equal(calls.some((call) => call.sql.includes('DELETE FROM cart_items')), false);
 });
 
-test('GET /resources/api_orders.php returns authenticated user purchase history ordered by purchase date', async (t) => {
+test('GET /api/orders returns authenticated user purchase history ordered by purchase date', async (t) => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
   const calls = [];
@@ -1356,7 +1356,7 @@ test('GET /resources/api_orders.php returns authenticated user purchase history 
   });
 
   await withServer(async (port) => {
-    const response = await fetch(`http://127.0.0.1:${port}/resources/api_orders.php?user_id=someone-else`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/orders?user_id=someone-else`, {
       headers: { Authorization: `Bearer ${token}` },
     });
 
@@ -1380,12 +1380,12 @@ test('GET /resources/api_orders.php returns authenticated user purchase history 
 });
 
 // ---------------------------------------------------------------------------
-// /resources/api_order_items.php – authenticated order item operations
+// /api/order-items – authenticated order item operations
 // ---------------------------------------------------------------------------
 
-test('PUT /resources/api_order_items.php returns 401 without Authorization header', async () => {
+test('PUT /api/order-items returns 401 without Authorization header', async () => {
   await withServer(async (port) => {
-    const response = await fetch(`http://127.0.0.1:${port}/resources/api_order_items.php?id=item-1`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/order-items?id=item-1`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ quantity: 2 }),
@@ -1395,7 +1395,7 @@ test('PUT /resources/api_order_items.php returns 401 without Authorization heade
   });
 });
 
-test('PUT /resources/api_order_items.php updates an owned order item quantity', async (t) => {
+test('PUT /api/order-items updates an owned order item quantity', async (t) => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
   const calls = [];
@@ -1435,7 +1435,7 @@ test('PUT /resources/api_order_items.php updates an owned order item quantity', 
   t.mock.method(db, 'connect', async () => client);
 
   await withServer(async (port) => {
-    const response = await fetch(`http://127.0.0.1:${port}/resources/api_order_items.php?id=item-1`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/order-items?id=item-1`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -1463,7 +1463,7 @@ test('PUT /resources/api_order_items.php updates an owned order item quantity', 
   assert.equal(released, true);
 });
 
-test('PUT /resources/api_order_items.php returns 404 for another user item', async (t) => {
+test('PUT /api/order-items returns 404 for another user item', async (t) => {
   const token = makeToken('user-uuid-1');
   const calls = [];
   let released = false;
@@ -1486,7 +1486,7 @@ test('PUT /resources/api_order_items.php returns 404 for another user item', asy
   t.mock.method(db, 'connect', async () => client);
 
   await withServer(async (port) => {
-    const response = await fetch(`http://127.0.0.1:${port}/resources/api_order_items.php?id=item-1`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/order-items?id=item-1`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -1504,7 +1504,7 @@ test('PUT /resources/api_order_items.php returns 404 for another user item', asy
   assert.equal(released, true);
 });
 
-test('PUT /resources/api_order_items.php returns 404 when order total update affects no rows', async (t) => {
+test('PUT /api/order-items returns 404 when order total update affects no rows', async (t) => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
   const calls = [];
@@ -1540,7 +1540,7 @@ test('PUT /resources/api_order_items.php returns 404 when order total update aff
   t.mock.method(db, 'connect', async () => client);
 
   await withServer(async (port) => {
-    const response = await fetch(`http://127.0.0.1:${port}/resources/api_order_items.php?id=item-1`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/order-items?id=item-1`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -1556,10 +1556,10 @@ test('PUT /resources/api_order_items.php returns 404 when order total update aff
   assert.equal(released, true);
 });
 
-test('DELETE /resources/api_order_items.php returns 401 without Authorization header', async () => {
+test('DELETE /api/order-items returns 401 without Authorization header', async () => {
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_order_items.php?id=item-1&order_id=order-1`,
+      `http://127.0.0.1:${port}/api/order-items?id=item-1&order_id=order-1`,
       { method: 'DELETE' },
     );
 
@@ -1567,7 +1567,7 @@ test('DELETE /resources/api_order_items.php returns 401 without Authorization he
   });
 });
 
-test('DELETE /resources/api_order_items.php returns 404 for another user item', async (t) => {
+test('DELETE /api/order-items returns 404 for another user item', async (t) => {
   const token = makeToken('user-uuid-1');
   const calls = [];
   let released = false;
@@ -1594,7 +1594,7 @@ test('DELETE /resources/api_order_items.php returns 404 for another user item', 
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_order_items.php?id=item-1&order_id=order-1`,
+      `http://127.0.0.1:${port}/api/order-items?id=item-1&order_id=order-1`,
       {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
@@ -1610,7 +1610,7 @@ test('DELETE /resources/api_order_items.php returns 404 for another user item', 
   assert.equal(released, true);
 });
 
-test('DELETE /resources/api_order_items.php deletes order when removed item was the last one', async (t) => {
+test('DELETE /api/order-items deletes order when removed item was the last one', async (t) => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
   const calls = [];
@@ -1646,7 +1646,7 @@ test('DELETE /resources/api_order_items.php deletes order when removed item was 
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_order_items.php?id=item-1&order_id=order-1`,
+      `http://127.0.0.1:${port}/api/order-items?id=item-1&order_id=order-1`,
       {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
@@ -1671,7 +1671,7 @@ test('DELETE /resources/api_order_items.php deletes order when removed item was 
   assert.equal(released, true);
 });
 
-test('DELETE /resources/api_order_items.php recalculates order total when items remain', async (t) => {
+test('DELETE /api/order-items recalculates order total when items remain', async (t) => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
   const calls = [];
@@ -1707,7 +1707,7 @@ test('DELETE /resources/api_order_items.php recalculates order total when items 
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_order_items.php?id=item-1&order_id=order-1`,
+      `http://127.0.0.1:${port}/api/order-items?id=item-1&order_id=order-1`,
       {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
@@ -1726,7 +1726,7 @@ test('DELETE /resources/api_order_items.php recalculates order total when items 
   assert.equal(released, true);
 });
 
-test('DELETE /resources/api_order_items.php returns 404 when non-empty order total update affects no rows', async (t) => {
+test('DELETE /api/order-items returns 404 when non-empty order total update affects no rows', async (t) => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
   const calls = [];
@@ -1762,7 +1762,7 @@ test('DELETE /resources/api_order_items.php returns 404 when non-empty order tot
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_order_items.php?id=item-1&order_id=order-1`,
+      `http://127.0.0.1:${port}/api/order-items?id=item-1&order_id=order-1`,
       {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },

@@ -37,7 +37,7 @@ function normalizeQuantity(value) {
   return Number.isInteger(normalized) && normalized > 0 ? normalized : null;
 }
 
-router.get('/resources/api_cart.php', cartLimiter, requireAuth, asyncHandler(async (req, res) => {
+router.get('/api/cart', cartLimiter, requireAuth, asyncHandler(async (req, res) => {
   const result = await db.query(
     `WITH consolidated AS (
        SELECT
@@ -64,7 +64,7 @@ router.get('/resources/api_cart.php', cartLimiter, requireAuth, asyncHandler(asy
   return res.status(200).json(result.rows);
 }));
 
-router.post('/resources/api_cart.php', cartLimiter, requireAuth, asyncHandler(async (req, res) => {
+router.post('/api/cart', cartLimiter, requireAuth, asyncHandler(async (req, res) => {
   const bookTitle = normalizeRequiredText(req.body?.book_title);
   const volume = normalizeRequiredText(req.body?.volume);
   const quantity = normalizeQuantity(req.body?.quantity);
@@ -159,7 +159,7 @@ router.post('/resources/api_cart.php', cartLimiter, requireAuth, asyncHandler(as
   }
 }));
 
-router.put('/resources/api_cart.php/:id', cartLimiter, requireAuth, asyncHandler(async (req, res) => {
+router.put('/api/cart/:id', cartLimiter, requireAuth, asyncHandler(async (req, res) => {
   const quantity = normalizeQuantity(req.body?.quantity);
 
   if (!quantity) {
@@ -181,7 +181,7 @@ router.put('/resources/api_cart.php/:id', cartLimiter, requireAuth, asyncHandler
   return res.status(200).json(result.rows[0]);
 }));
 
-router.delete('/resources/api_cart.php/:id', cartLimiter, requireAuth, asyncHandler(async (req, res) => {
+router.delete('/api/cart/:id', cartLimiter, requireAuth, asyncHandler(async (req, res) => {
   const result = await db.query(
     'DELETE FROM cart_items WHERE id = $1 AND user_id = $2 RETURNING id',
     [req.params.id, req.user.sub],

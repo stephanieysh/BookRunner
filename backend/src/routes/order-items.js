@@ -24,7 +24,7 @@ function normalizeRequiredId(value) {
   return normalized.length > 0 ? normalized : null;
 }
 
-router.put('/resources/api_order_items.php', orderItemsLimiter, requireAuth, asyncHandler(async (req, res) => {
+router.put('/api/order-items', orderItemsLimiter, requireAuth, asyncHandler(async (req, res) => {
   const orderItemId = normalizeRequiredId(req.query?.id);
   const quantity = normalizeQuantity(req.body?.quantity);
 
@@ -95,7 +95,7 @@ router.put('/resources/api_order_items.php', orderItemsLimiter, requireAuth, asy
   }
 }));
 
-router.delete('/resources/api_order_items.php', orderItemsLimiter, requireAuth, asyncHandler(async (req, res) => {
+router.delete('/api/order-items', orderItemsLimiter, requireAuth, asyncHandler(async (req, res) => {
   const orderItemId = normalizeRequiredId(req.query?.id);
   const orderId = normalizeRequiredId(req.query?.order_id);
 
