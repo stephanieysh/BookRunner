@@ -304,16 +304,17 @@ const Product = {
 
             this.results = allData.filter((book) => {
                 const queryLower = query.toLowerCase();
+                const bookType = String(book.type || '');
                 const matchesQuery =
                 book.title.toLowerCase().includes(queryLower) ||
                 book.author.toLowerCase().includes(queryLower) ||
-                book.type.toLowerCase().includes(queryLower) ||
+                bookType.toLowerCase().includes(queryLower) ||
                 book.genre.some((g) => g.toLowerCase().includes(queryLower)) ||
                 book.keywords?.some((k) => k.toLowerCase().includes(queryLower));
 
                 const typeFilter = this.windowWidth >= 576 ? this.selectedType : this.selectedTypeMobile;
                 const matchesType =
-                typeFilter === "All" || typeFilter === "" || book.type.toLowerCase() === typeFilter.toLowerCase();
+                typeFilter === "All" || typeFilter === "" || bookType.toLowerCase() === typeFilter.toLowerCase();
 
                 const publisherFilter = this.windowWidth >= 576 ? this.selectedPublishers : [this.selectedPublisherMobile];
                 const matchesPublisher =

@@ -16,7 +16,7 @@ const booksLimiter = rateLimit({
 router.get('/resources/api_books.php', booksLimiter, async (req, res) => {
   try {
     const result = await db.query(
-      'SELECT book_id, title, author, genre, description, price, volume, cover, type, publisher, keywords, page_count, release_date FROM books ORDER BY title ASC, volume ASC'
+      'SELECT book_id, title, author, genre, description, price, volume, cover, publisher, keywords, page_count, release_date FROM books ORDER BY title ASC, volume ASC'
     );
 
     const grouped = {};
@@ -26,7 +26,7 @@ router.get('/resources/api_books.php', booksLimiter, async (req, res) => {
           title: row.title,
           author: row.author,
           genre: row.genre ? row.genre.split(',').map(g => g.trim()) : [],
-          type: row.type,
+          type: row.type || '',
           publisher: row.publisher,
           keywords: row.keywords ? row.keywords.split(',').map(k => k.trim()) : [],
           price: Number(row.price),
@@ -50,7 +50,7 @@ router.get('/resources/api_books.php', booksLimiter, async (req, res) => {
     return res.status(200).json(catalog);
   } catch (error) {
     console.error('Error fetching books catalog:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
 
