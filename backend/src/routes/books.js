@@ -50,7 +50,7 @@ router.get('/resources/api_books.php', booksLimiter, async (req, res) => {
     return res.status(200).json(catalog);
   } catch (error) {
     console.error('Error fetching books catalog:', error);
-    return res.status(500).json({ error: error.message || 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
