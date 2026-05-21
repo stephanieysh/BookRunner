@@ -759,7 +759,7 @@ test('POST /resources/api_cart.php serializes concurrent writes for the same car
             cover: params[4],
             price: String(params[5]),
             quantity: params[6],
-            created_at: nextId,
+            created_at: new Date(`2026-01-01T00:00:0${nextId}Z`),
           };
           rowState.push(row);
           return { rows: [row] };

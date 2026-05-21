@@ -104,7 +104,13 @@ router.post('/resources/api_cart.php', cartLimiter, requireAuth, asyncHandler(as
     if (existingRows.rows.length > 0) {
       const [keepRow, ...duplicateRows] = existingRows.rows;
       const mergedQuantity = existingRows.rows.reduce(
-        (sum, row) => sum + Number(row.quantity),
+        (sum, row) => {
+          const normalizedQuantity = Number(row.quantity);
+          if (!Number.isFinite(normalizedQuantity) || normalizedQuantity < 0) {
+            throw new Error('Invalid existing cart quantity');
+          }
+          return sum + normalizedQuantity;
+        },
         0,
       ) + quantity;
 
@@ -144,8 +150,8 @@ router.post('/resources/api_cart.php', cartLimiter, requireAuth, asyncHandler(as
   } catch (error) {
     try {
       await client.query('ROLLBACK');
-    } catch {
-      // no-op
+    } catch (rollbackError) {
+      console.error(rollbackError);
     }
     throw error;
   } finally {
