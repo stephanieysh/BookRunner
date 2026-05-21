@@ -16,7 +16,7 @@ const booksLimiter = rateLimit({
 router.get('/resources/api_books.php', booksLimiter, async (req, res) => {
   try {
     const result = await db.query(
-      'SELECT book_id, title, author, genre, description, price, volume, cover, publisher, keywords, page_count, release_date FROM books ORDER BY title ASC, volume ASC'
+      'SELECT id, title, author, genre, description, price, volume, cover, publisher, keywords, page_count, release_date FROM books ORDER BY title ASC, volume ASC'
     );
 
     const grouped = {};
