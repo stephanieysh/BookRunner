@@ -5,6 +5,7 @@ const rateLimit = require('express-rate-limit');
 const db = require('../db');
 
 const router = express.Router();
+
 const booksLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 200,
@@ -15,42 +16,64 @@ const booksLimiter = rateLimit({
 
 router.get('/resources/api_books.php', booksLimiter, async (req, res) => {
   try {
-    const result = await db.query(
-      'SELECT id, title, author, genre, description, price, volume, cover, publisher, keywords, page_count, release_date FROM books ORDER BY title ASC, volume ASC'
-    );
+    const result = await db.query(`
+      SELECT 
+        b.id AS book_id,
+        b.title,
+        b.author,
+        b.type,
+        b.genre,
+        b.keywords,
+        b.publisher,
+        b.description,
+        b.price,
+
+        v.volume_number,
+        v.cover,
+        v.page_count,
+        v.release_date
+
+      FROM books b
+      LEFT JOIN book_volumes v ON b.id = v.book_id
+      ORDER BY b.title ASC, v.volume_number ASC
+    `);
 
     const grouped = {};
+
     for (const row of result.rows) {
-      if (!grouped[row.title]) {
-        grouped[row.title] = {
+      if (!grouped[row.book_id]) {
+        grouped[row.book_id] = {
+          id: row.book_id,
           title: row.title,
           author: row.author,
-          genre: row.genre ? row.genre.split(',').map(g => g.trim()) : [],
-          type: row.type || '',
+          genre: row.genre || [],
+          type: row.type,
           publisher: row.publisher,
-          keywords: row.keywords ? row.keywords.split(',').map(k => k.trim()) : [],
+          keywords: row.keywords || [],
           price: Number(row.price),
           description: row.description,
           volumes: [],
         };
       }
 
-      const volumeLabel = typeof row.volume === 'string' ? row.volume : '';
-      const volumeNumber = Number(volumeLabel.replace('Vol ', ''));
-
-      grouped[row.title].volumes.push({
-        volumeNumber: Number.isNaN(volumeNumber) ? 0 : volumeNumber,
-        cover: row.cover,
-        page_count: row.page_count,
-        release_date: row.release_date,
-      });
+      if (row.volume_number !== null) {
+        grouped[row.book_id].volumes.push({
+          volumeNumber: row.volume_number,
+          cover: row.cover,
+          page_count: row.page_count,
+          release_date: row.release_date,
+        });
+      }
     }
 
     const catalog = Object.values(grouped);
     return res.status(200).json(catalog);
+
   } catch (error) {
     console.error('Error fetching books catalog:', error);
-    return res.status(500).json({ error: error.message || 'Internal server error' });
+    return res.status(500).json({
+      error: error.message || 'Internal server error'
+    });
   }
 });
 
