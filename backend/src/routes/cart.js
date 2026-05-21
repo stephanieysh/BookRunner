@@ -65,39 +65,54 @@ router.post('/resources/api_cart.php', cartLimiter, requireAuth, asyncHandler(as
     return res.status(404).json({ error: 'Book not found' });
   }
 
-  const result = await db.query(
-    `WITH existing AS (
-       SELECT id
-       FROM cart_items
-       WHERE user_id = $1 AND book_id = $2
-       ORDER BY created_at DESC, id DESC
-       LIMIT 1
-     ), updated AS (
-       UPDATE cart_items
-       SET
-         quantity = cart_items.quantity + $7,
-         updated_at = NOW()
-       WHERE id IN (SELECT id FROM existing)
-       RETURNING ${CART_COLUMNS}
-     ), inserted AS (
-       INSERT INTO cart_items (user_id, book_id, title, volume, cover, unit_price, quantity)
-       SELECT $1, $2, $3, $4, $5, $6, $7
-       WHERE NOT EXISTS (SELECT 1 FROM existing)
-       RETURNING ${CART_COLUMNS}
-     )
-     SELECT * FROM updated
-     UNION ALL
-     SELECT * FROM inserted`,
-    [
-      req.user.sub,
-      catalogItem.bookId,
-      catalogItem.bookTitle,
-      catalogItem.volume,
-      catalogItem.cover,
-      catalogItem.price,
-      quantity,
-    ],
-  );
+  await db.query('BEGIN');
+
+  let result;
+  try {
+    await db.query(
+      'SELECT pg_advisory_xact_lock(hashtext($1 || \'::\' || $2))',
+      [String(req.user.sub), String(catalogItem.bookId)],
+    );
+
+    result = await db.query(
+      `WITH existing AS (
+         SELECT id
+         FROM cart_items
+         WHERE user_id = $1 AND book_id = $2
+         ORDER BY created_at DESC, id DESC
+         LIMIT 1
+       ), updated AS (
+         UPDATE cart_items
+         SET
+           quantity = cart_items.quantity + $7,
+           updated_at = NOW()
+         WHERE id IN (SELECT id FROM existing)
+         RETURNING ${CART_COLUMNS}
+       ), inserted AS (
+         INSERT INTO cart_items (user_id, book_id, title, volume, cover, unit_price, quantity)
+         SELECT $1, $2, $3, $4, $5, $6, $7
+         WHERE NOT EXISTS (SELECT 1 FROM existing)
+         RETURNING ${CART_COLUMNS}
+       )
+       SELECT * FROM updated
+       UNION ALL
+       SELECT * FROM inserted`,
+      [
+        req.user.sub,
+        catalogItem.bookId,
+        catalogItem.bookTitle,
+        catalogItem.volume,
+        catalogItem.cover,
+        catalogItem.price,
+        quantity,
+      ],
+    );
+
+    await db.query('COMMIT');
+  } catch (error) {
+    await db.query('ROLLBACK');
+    throw error;
+  }
 
   return res.status(201).json(result.rows[0]);
 }));
