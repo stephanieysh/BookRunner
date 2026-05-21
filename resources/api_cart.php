@@ -64,6 +64,14 @@ switch ($method) {
         break;
     case 'POST':
         // POST /cart => add new cart item
+        if (!isset($set) || trim($set) === '') {
+            http_response_code(400);
+            echo json_encode([
+                'error' => 'Invalid input: empty request body or missing fields'
+            ]);
+            exit;
+        }
+
         $sql = "INSERT INTO `$table` SET $set";
         break;
     case 'DELETE':
