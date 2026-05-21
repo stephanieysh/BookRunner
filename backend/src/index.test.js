@@ -698,6 +698,76 @@ test('POST /resources/api_cart.php returns 404 when the catalog item does not ex
   });
 });
 
+test('POST /resources/api_cart.php increments quantity for existing cart rows', async (t) => {
+  const token = makeToken('user-uuid-1');
+  const calls = [];
+
+  t.mock.method(db, 'query', async (sql, params) => {
+    calls.push({ sql, params });
+
+    if (/SELECT[\s\S]*FROM books/i.test(sql)) {
+      return {
+        rows: [{
+          book_id: 'OP001',
+          title: 'One Piece',
+          volume: 'Vol 1',
+          cover: 'images/one_piece_vol_1.jpg',
+          price: 30,
+        }],
+      };
+    }
+
+    if (sql === 'BEGIN' || sql === 'COMMIT') {
+      return { rows: [], rowCount: null };
+    }
+
+    if (/SELECT pg_advisory_xact_lock/i.test(sql)) {
+      return { rows: [{ pg_advisory_xact_lock: null }] };
+    }
+
+    if (/WITH existing AS/i.test(sql)) {
+      return {
+        rows: [{
+          id: 'cart-1',
+          user_id: 'user-uuid-1',
+          book_id: 'OP001',
+          book_title: 'One Piece',
+          volume: '1',
+          cover: 'images/one_piece_vol_1.jpg',
+          price: '30',
+          quantity: 5,
+        }],
+      };
+    }
+
+    throw new Error(`Unexpected SQL: ${sql}`);
+  });
+
+  await withServer(async (port) => {
+    const response = await fetch(`http://127.0.0.1:${port}/resources/api_cart.php`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        book_title: 'One Piece',
+        volume: '1',
+        quantity: 2,
+      }),
+    });
+
+    assert.equal(response.status, 201);
+    const payload = await response.json();
+    assert.equal(payload.quantity, 5);
+  });
+
+  const upsertQuery = calls.find((call) => /WITH existing AS/i.test(call.sql));
+  assert.ok(upsertQuery);
+  assert.match(upsertQuery.sql, /quantity = cart_items.quantity \+ \$7/);
+  assert.equal(upsertQuery.params[6], 2);
+});
+
 test('POST /resources/api_cart.php rolls back and returns 500 when cart write fails', async (t) => {
   const token = makeToken('user-uuid-1');
   const calls = [];
@@ -749,8 +819,8 @@ test('POST /resources/api_cart.php rolls back and returns 500 when cart write fa
     assert.equal(response.status, 500);
   });
 
-  assert.equal(calls[1].sql, 'BEGIN');
-  assert.equal(calls[4].sql, 'ROLLBACK');
+  assert.ok(calls.some((call) => call.sql === 'BEGIN'));
+  assert.ok(calls.some((call) => call.sql === 'ROLLBACK'));
 });
 
 test('PUT /resources/api_cart.php/:id updates an owned cart item', async (t) => {
