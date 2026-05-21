@@ -111,12 +111,26 @@ jobs:
           containerAppName: ${{ secrets.ACA_STAGING_BACKEND_APP }}
           imageToDeploy: ${{ env.BACKEND_IMAGE }}:${{ needs.build-and-push.outputs.image-tag }}
 
+      - name: Get staging backend URL
+        run: |
+          FQDN=$(az containerapp show \
+            --name ${{ secrets.ACA_STAGING_BACKEND_APP }} \
+            --resource-group ${{ secrets.ACA_RESOURCE_GROUP }} \
+            --query "properties.configuration.ingress.fqdn" \
+            --output tsv)
+          if [[ -z "${FQDN}" ]]; then
+            echo "::error::Could not retrieve the staging backend FQDN. Ensure the backend Container App is deployed and has ingress enabled."
+            exit 1
+          fi
+          echo "STAGING_BACKEND_URL=https://${FQDN}" >> "$GITHUB_ENV"
+
       - name: Deploy frontend to staging Container App
         uses: azure/container-apps-deploy-action@v2
         with:
           resourceGroup: ${{ secrets.ACA_RESOURCE_GROUP }}
           containerAppName: ${{ secrets.ACA_STAGING_FRONTEND_APP }}
           imageToDeploy: ${{ env.FRONTEND_IMAGE }}:${{ needs.build-and-push.outputs.image-tag }}
+          environmentVariables: BACKEND_URL=${{ env.STAGING_BACKEND_URL }}
 
   deploy-production:
     name: Deploy to production
@@ -149,9 +163,23 @@ jobs:
           containerAppName: ${{ secrets.ACA_PRODUCTION_BACKEND_APP }}
           imageToDeploy: ${{ env.BACKEND_IMAGE }}:${{ needs.build-and-push.outputs.image-tag }}
 
+      - name: Get production backend URL
+        run: |
+          FQDN=$(az containerapp show \
+            --name ${{ secrets.ACA_PRODUCTION_BACKEND_APP }} \
+            --resource-group ${{ secrets.ACA_RESOURCE_GROUP }} \
+            --query "properties.configuration.ingress.fqdn" \
+            --output tsv)
+          if [[ -z "${FQDN}" ]]; then
+            echo "::error::Could not retrieve the production backend FQDN. Ensure the backend Container App is deployed and has ingress enabled."
+            exit 1
+          fi
+          echo "PRODUCTION_BACKEND_URL=https://${FQDN}" >> "$GITHUB_ENV"
+
       - name: Deploy frontend to production Container App
         uses: azure/container-apps-deploy-action@v2
         with:
           resourceGroup: ${{ secrets.ACA_RESOURCE_GROUP }}
           containerAppName: ${{ secrets.ACA_PRODUCTION_FRONTEND_APP }}
           imageToDeploy: ${{ env.FRONTEND_IMAGE }}:${{ needs.build-and-push.outputs.image-tag }}
+          environmentVariables: BACKEND_URL=${{ env.PRODUCTION_BACKEND_URL }}
