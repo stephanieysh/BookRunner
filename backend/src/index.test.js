@@ -934,6 +934,7 @@ test('POST /resources/api_cart.php increments quantity for existing cart rows', 
   assert.match(writeCalls[3].sql, /UPDATE cart_items/);
   assert.equal(writeCalls[3].params[0], 7);
   assert.match(writeCalls[4].sql, /DELETE FROM cart_items/);
+  assert.deepEqual(writeCalls[4].params, [['cart-1']]);
   assert.equal(writeCalls[5].sql, 'COMMIT');
 });
 
