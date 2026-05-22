@@ -127,6 +127,14 @@ test('startup migration adds missing books columns with IF NOT EXISTS', async (t
   assert.match(calls[1], /WHERE volume IS NULL OR BTRIM\(volume\) = ''/i);
   assert.match(calls[1], /UPDATE books[\s\S]*SET book_id = gen_random_uuid\(\)/i);
   assert.match(calls[1], /WHERE book_id IS NULL OR BTRIM\(book_id\) = ''/i);
+  assert.match(
+    calls[1],
+    /ALTER TABLE cart_items[\s\S]*ALTER COLUMN book_id TYPE VARCHAR\(120\) USING book_id::text/i,
+  );
+  assert.match(
+    calls[1],
+    /ALTER TABLE order_items[\s\S]*ALTER COLUMN book_id TYPE VARCHAR\(120\) USING book_id::text/i,
+  );
   assert.equal(calls[2], 'COMMIT');
 });
 

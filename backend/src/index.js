@@ -35,6 +35,12 @@ WHERE volume IS NULL OR BTRIM(volume) = '';
 UPDATE books
 SET book_id = gen_random_uuid()::text
 WHERE book_id IS NULL OR BTRIM(book_id) = '';
+
+ALTER TABLE cart_items
+  ALTER COLUMN book_id TYPE VARCHAR(120) USING book_id::text;
+
+ALTER TABLE order_items
+  ALTER COLUMN book_id TYPE VARCHAR(120) USING book_id::text;
 `;
 
 const resolvePort = (rawPort) => {
