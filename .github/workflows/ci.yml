@@ -62,7 +62,7 @@ jobs:
 
       - name: Install Selenium test dependencies
         working-directory: frontend-test
-        run: npm install
+        run: npm ci
 
       - name: Run Selenium E2E tests
         working-directory: frontend-test
