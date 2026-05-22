@@ -21,6 +21,18 @@ const BOOKS_QUERY_LEGACY_NO_VOLUME = 'SELECT title, author, genre, description, 
 const BOOKS_QUERY_LEGACY_NO_VOLUME_NO_COVER = 'SELECT title, author, genre, description, price, type, publisher FROM books ORDER BY title ASC';
 const POSTGRES_UNDEFINED_COLUMN = '42703';
 
+const toList = (value) => {
+  if (value == null) {
+    return [];
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean);
+  }
+
+  return String(value).split(',').map((item) => item.trim()).filter(Boolean);
+};
+
 const queryBooks = async () => {
   const fallbackQueries = [
     BOOKS_QUERY,
@@ -56,10 +68,10 @@ router.get('/api/books', booksLimiter, async (req, res) => {
         grouped[row.title] = {
           title: row.title,
           author: row.author,
-          genre: row.genre ? row.genre.split(',').map(g => g.trim()) : [],
+          genre: toList(row.genre),
           type: row.type,
           publisher: row.publisher,
-          keywords: row.keywords ? row.keywords.split(',').map(k => k.trim()) : [],
+          keywords: toList(row.keywords),
           price: Number(row.price),
           description: row.description,
           volumes: [],

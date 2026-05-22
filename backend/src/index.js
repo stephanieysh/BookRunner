@@ -71,6 +71,8 @@ const PORT = resolvePort(process.env.PORT);
 const HOST = process.env.HOST || '0.0.0.0';
 const allowedOrigins = resolveAllowedOrigins(process.env.FRONTEND_ORIGIN);
 
+app.set('trust proxy', 1);
+
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   if (!origin) {
