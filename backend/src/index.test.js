@@ -125,8 +125,6 @@ test('startup migration adds missing books columns with IF NOT EXISTS', async (t
   assert.match(calls[1], /SUBSTRING\(cover FROM '_vol_\(\[0-9\]\+\)'/i);
   assert.match(calls[1], /SUBSTRING\(book_id FROM '\(\[0-9\]\+\)\$'/i);
   assert.match(calls[1], /WHERE volume IS NULL OR BTRIM\(volume\) = ''/i);
-  assert.match(calls[1], /UPDATE books[\s\S]*SET book_id = LOWER\(REGEXP_REPLACE\(title/i);
-  assert.match(calls[1], /WHERE book_id IS NULL OR BTRIM\(book_id\) = ''/i);
   assert.match(
     calls[1],
     /ALTER TABLE cart_items[\s\S]*ALTER COLUMN book_id TYPE VARCHAR\(120\) USING book_id::text/i,

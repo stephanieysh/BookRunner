@@ -32,12 +32,6 @@ SET volume = 'Vol ' || COALESCE(
 )
 WHERE volume IS NULL OR BTRIM(volume) = '';
 
-UPDATE books
-SET book_id = LOWER(REGEXP_REPLACE(title, '[^a-zA-Z0-9]+', '-', 'g'))
-             || '::' ||
-             COALESCE(NULLIF(REGEXP_REPLACE(volume, '[^0-9]+', '', 'g'), ''), '1')
-WHERE book_id IS NULL OR BTRIM(book_id) = '';
-
 ALTER TABLE cart_items
   ALTER COLUMN book_id TYPE VARCHAR(120) USING book_id::text;
 
