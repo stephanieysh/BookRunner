@@ -211,6 +211,7 @@ test('GET /api/books falls back to no-volume legacy query when volume is also mi
 
   assert.match(calls[0], /SELECT book_id/);
   assert.match(calls[1], /ORDER BY title ASC, volume ASC/);
+  assert.doesNotMatch(calls[2], /SELECT[\s\S]*\bvolume\b/i);
   assert.match(calls[2], /ORDER BY title ASC$/);
 });
 
