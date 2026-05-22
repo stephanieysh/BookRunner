@@ -181,6 +181,90 @@ test('GET /api/books returns 200 when a row has null volume', async (t) => {
   });
 });
 
+test('GET /api/books returns 200 when genre is an array', async (t) => {
+  t.mock.method(db, 'query', async () => ({
+    rows: [{
+      book_id: 'book-genre-array',
+      title: 'Array Genre Book',
+      author: 'Author',
+      genre: [' Action ', 'Fantasy', 7],
+      description: 'Desc',
+      price: '12.50',
+      volume: 'Vol 1',
+      cover: '/images/array-genre.jpg',
+      type: 'Manga',
+      publisher: 'Publisher',
+      keywords: 'Tag 1, Tag 2',
+      page_count: 180,
+      release_date: '2025-03-01',
+    }],
+  }));
+
+  await withServer(async (port) => {
+    const response = await fetch(`http://127.0.0.1:${port}/api/books`);
+    const payload = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(payload[0].genre, ['Action', 'Fantasy', '7']);
+  });
+});
+
+test('GET /api/books returns 200 when keywords is an array', async (t) => {
+  t.mock.method(db, 'query', async () => ({
+    rows: [{
+      book_id: 'book-keywords-array',
+      title: 'Array Keywords Book',
+      author: 'Author',
+      genre: 'Action, Fantasy',
+      description: 'Desc',
+      price: '15.00',
+      volume: 'Vol 2',
+      cover: '/images/array-keywords.jpg',
+      type: 'Manga',
+      publisher: 'Publisher',
+      keywords: [' Popular ', ' New ', 42],
+      page_count: 190,
+      release_date: '2025-04-01',
+    }],
+  }));
+
+  await withServer(async (port) => {
+    const response = await fetch(`http://127.0.0.1:${port}/api/books`);
+    const payload = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(payload[0].keywords, ['Popular', 'New', '42']);
+  });
+});
+
+test('GET /api/books accepts X-Forwarded-For header', async (t) => {
+  t.mock.method(db, 'query', async () => ({
+    rows: [{
+      book_id: 'book-forwarded-for',
+      title: 'Forwarded Header Book',
+      author: 'Author',
+      genre: 'Action',
+      description: 'Desc',
+      price: '18.00',
+      volume: 'Vol 1',
+      cover: '/images/forwarded-header.jpg',
+      type: 'Manga',
+      publisher: 'Publisher',
+      keywords: 'Popular',
+      page_count: 210,
+      release_date: '2025-05-01',
+    }],
+  }));
+
+  await withServer(async (port) => {
+    const response = await fetch(`http://127.0.0.1:${port}/api/books`, {
+      headers: { 'X-Forwarded-For': '203.0.113.10' },
+    });
+
+    assert.equal(response.status, 200);
+  });
+});
+
 test('GET /api/books falls back to legacy query when newer books columns are missing', async (t) => {
   const calls = [];
 
