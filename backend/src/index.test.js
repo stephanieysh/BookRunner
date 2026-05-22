@@ -135,7 +135,7 @@ test('startup migration adds missing books columns with IF NOT EXISTS', async (t
   );
   assert.match(calls[1], /UPDATE books AS b SET\s+cover = v\.cover,/i);
   assert.match(calls[1], /FROM \(VALUES/i);
-  assert.match(calls[1], /WHERE b\.book_id = v\.book_id/i);
+  assert.match(calls[1], /WHERE b\.title = v\.title\s+AND b\.volume = v\.volume/i);
   assert.match(calls[1], /b\.cover IS NULL OR BTRIM\(b\.cover\) = ''/i);
   assert.equal(calls[2], 'COMMIT');
 });
