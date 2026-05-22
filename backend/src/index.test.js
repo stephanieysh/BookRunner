@@ -101,6 +101,35 @@ test('OPTIONS preflight rejects disallowed origins', async () => {
   });
 });
 
+test('startup migration adds missing books columns with IF NOT EXISTS', async (t) => {
+  const calls = [];
+  t.mock.method(db, 'query', async (sql) => {
+    calls.push(sql);
+    return { rows: [] };
+  });
+
+  await app.runStartupMigrations();
+
+  assert.equal(calls.length, 1);
+  assert.match(calls[0], /ALTER TABLE books ADD COLUMN IF NOT EXISTS cover TEXT/i);
+  assert.match(calls[0], /ALTER TABLE books ADD COLUMN IF NOT EXISTS keywords TEXT/i);
+  assert.match(calls[0], /ALTER TABLE books ADD COLUMN IF NOT EXISTS page_count INTEGER DEFAULT 0/i);
+  assert.match(calls[0], /ALTER TABLE books ADD COLUMN IF NOT EXISTS release_date VARCHAR\(20\)/i);
+  assert.match(calls[0], /ALTER TABLE books ADD COLUMN IF NOT EXISTS book_id VARCHAR\(120\)/i);
+});
+
+test('startup migration logs and continues when migration query fails', async (t) => {
+  t.mock.method(db, 'query', async () => {
+    throw new Error('migration failed');
+  });
+  const consoleErrorMock = t.mock.method(console, 'error', () => {});
+
+  await app.runStartupMigrations();
+
+  assert.equal(consoleErrorMock.mock.calls.length, 1);
+  assert.match(String(consoleErrorMock.mock.calls[0].arguments[0]), /Startup books schema migration failed/);
+});
+
 test('GET /api/books returns 200 when a row has null volume', async (t) => {
   t.mock.method(db, 'query', async () => ({
     rows: [{

@@ -3,6 +3,7 @@
 require('dotenv').config();
 
 const express = require('express');
+const db = require('./db');
 const userRoutes = require('./routes/users');
 const cartRoutes = require('./routes/cart');
 const orderRoutes = require('./routes/orders');
@@ -15,6 +16,13 @@ const MAX_PORT = 65535;
 const CORS_METHODS = 'GET,POST,PUT,DELETE,OPTIONS';
 const CORS_HEADERS = 'Authorization,Content-Type';
 const CORS_MAX_AGE_SECONDS = '600';
+const BOOKS_SCHEMA_MIGRATION_SQL = `
+ALTER TABLE books ADD COLUMN IF NOT EXISTS cover TEXT;
+ALTER TABLE books ADD COLUMN IF NOT EXISTS keywords TEXT;
+ALTER TABLE books ADD COLUMN IF NOT EXISTS page_count INTEGER DEFAULT 0;
+ALTER TABLE books ADD COLUMN IF NOT EXISTS release_date VARCHAR(20);
+ALTER TABLE books ADD COLUMN IF NOT EXISTS book_id VARCHAR(120);
+`;
 
 const resolvePort = (rawPort) => {
   if (rawPort === undefined) {
@@ -105,10 +113,25 @@ app.use(orderRoutes);
 app.use(orderItemsRoutes);
 app.use(bookRoutes);
 
-if (require.main === module) {
+const runStartupMigrations = async () => {
+  try {
+    await db.query(BOOKS_SCHEMA_MIGRATION_SQL);
+  } catch (error) {
+    console.error('Startup books schema migration failed:', error);
+  }
+};
+
+const startServer = async () => {
+  await runStartupMigrations();
   app.listen(PORT, HOST, () => {
     console.log(`BookRunner API running on http://${HOST}:${PORT}`);
   });
+};
+
+if (require.main === module) {
+  startServer();
 }
 
 module.exports = app;
+module.exports.runStartupMigrations = runStartupMigrations;
+module.exports.startServer = startServer;
