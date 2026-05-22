@@ -44,10 +44,3 @@ VALUES
   ('REZ001', 'Re:Zero - Starting Life in Another World', 'Tappei Nagatsuki', 'Isekai, Fantasy, Drama', 'Subaru Natsuki is a NEET who finds himself in another world. He discovers he has the ability to return from death, but at a cost. As he navigates this new world, he faces challenges and uncovers dark secrets.', 15, 'Vol 1', 'images/rezero_vol_1.jpg', 'light novel', 'KADOKAWA', 'psychological, action, animated series', 10, 192, '2014-01-20'),
   ('REZ002', 'Re:Zero - Starting Life in Another World', 'Tappei Nagatsuki', 'Isekai, Fantasy, Drama', 'Subaru Natsuki is a NEET who finds himself in another world. He discovers he has the ability to return from death, but at a cost. As he navigates this new world, he faces challenges and uncovers dark secrets.', 15, 'Vol 2', 'images/rezero_vol_2.jpg', 'light novel', 'KADOKAWA', 'psychological, action, animated series', 10, 192, '2014-04-21'),
   ('REZ003', 'Re:Zero - Starting Life in Another World', 'Tappei Nagatsuki', 'Isekai, Fantasy, Drama', 'Subaru Natsuki is a NEET who finds himself in another world. He discovers he has the ability to return from death, but at a cost. As he navigates this new world, he faces challenges and uncovers dark secrets.', 15, 'Vol 3', 'images/rezero_vol_3.jpg', 'light novel', 'KADOKAWA', 'psychological, action, animated series', 10, 192, '2014-07-21');
-
-INSERT INTO users (name, email, password_hash)
-VALUES (
-  'Tester',
-  'test@gmail.com',
-  '$2b$10$KYVbZ5JFVfqu0oV98LnZbu.eM7W/7QD1g4Rf9NdgV.5HL9f0Vg9vG'
-);
