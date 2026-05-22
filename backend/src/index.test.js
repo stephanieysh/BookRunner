@@ -132,6 +132,47 @@ test('GET /api/books returns 200 when a row has null volume', async (t) => {
   });
 });
 
+test('GET /api/books falls back to legacy query when newer books columns are missing', async (t) => {
+  const calls = [];
+
+  t.mock.method(db, 'query', async (sql) => {
+    calls.push(sql);
+
+    if (calls.length === 1) {
+      const err = new Error('column "book_id" does not exist');
+      err.code = '42703';
+      throw err;
+    }
+
+    return {
+      rows: [{
+        title: 'Legacy Book',
+        author: 'Legacy Author',
+        genre: 'Adventure',
+        description: 'Legacy Desc',
+        price: '9.99',
+        volume: 'Vol 1',
+        cover: '/images/legacy.jpg',
+        type: 'Manga',
+        publisher: 'Legacy Publisher',
+      }],
+    };
+  });
+
+  await withServer(async (port) => {
+    const response = await fetch(`http://127.0.0.1:${port}/api/books`);
+    const payload = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(payload[0].title, 'Legacy Book');
+    assert.equal(payload[0].volumes[0].volumeNumber, 1);
+    assert.deepEqual(payload[0].keywords, []);
+  });
+
+  assert.match(calls[0], /SELECT book_id/);
+  assert.doesNotMatch(calls[1], /SELECT book_id/);
+});
+
 // ---------------------------------------------------------------------------
 // POST /api/users – input validation (no database required)
 // ---------------------------------------------------------------------------
