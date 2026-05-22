@@ -101,6 +101,55 @@ test('OPTIONS preflight rejects disallowed origins', async () => {
   });
 });
 
+test('startup migration adds missing books columns with IF NOT EXISTS', async (t) => {
+  const calls = [];
+  t.mock.method(db, 'connect', async () => ({
+    query: async (sql) => {
+      calls.push(sql);
+      return { rows: [] };
+    },
+    release: () => {},
+  }));
+
+  await app.runStartupMigrations();
+
+  assert.equal(calls.length, 3);
+  assert.equal(calls[0], 'BEGIN');
+  assert.match(calls[1], /ALTER TABLE books ADD COLUMN IF NOT EXISTS cover TEXT/i);
+  assert.match(calls[1], /ALTER TABLE books ADD COLUMN IF NOT EXISTS keywords TEXT/i);
+  assert.match(calls[1], /ALTER TABLE books ADD COLUMN IF NOT EXISTS page_count INTEGER DEFAULT 0/i);
+  assert.match(calls[1], /ALTER TABLE books ADD COLUMN IF NOT EXISTS release_date VARCHAR\(20\)/i);
+  assert.match(calls[1], /ALTER TABLE books ADD COLUMN IF NOT EXISTS book_id VARCHAR\(120\)/i);
+  assert.equal(calls[2], 'COMMIT');
+});
+
+test('startup migration logs error and rolls back transaction when migration fails', async (t) => {
+  const calls = [];
+  t.mock.method(db, 'connect', async () => ({
+    query: async (sql) => {
+      calls.push(sql);
+      if (sql === 'BEGIN') {
+        return { rows: [] };
+      }
+      if (sql === 'ROLLBACK') {
+        return { rows: [] };
+      }
+      throw new Error('migration failed');
+    },
+    release: () => {},
+  }));
+  const consoleErrorMock = t.mock.method(console, 'error', () => {});
+
+  await app.runStartupMigrations();
+
+  assert.equal(calls[0], 'BEGIN');
+  assert.equal(calls[2], 'ROLLBACK');
+  assert.equal(consoleErrorMock.mock.calls.length, 1);
+  const [firstCall] = consoleErrorMock.mock.calls;
+  const [firstMessage] = firstCall.arguments;
+  assert.match(String(firstMessage), /Startup books schema migration failed/);
+});
+
 test('GET /api/books returns 200 when a row has null volume', async (t) => {
   t.mock.method(db, 'query', async () => ({
     rows: [{
@@ -187,7 +236,7 @@ test('GET /api/books falls back to no-volume legacy query when volume is also mi
   t.mock.method(db, 'query', async (sql) => {
     calls.push(sql);
 
-    if (calls.length <= 3) {
+    if (calls.length <= 4) {
       const err = new Error('column does not exist');
       err.code = '42703';
       throw err;
@@ -222,8 +271,52 @@ test('GET /api/books falls back to no-volume legacy query when volume is also mi
   assert.doesNotMatch(calls[2], /SELECT[\s\S]*\bbook_id\b/i);
   assert.doesNotMatch(calls[2], /\bkeywords\b/);
   assert.match(calls[2], /ORDER BY title ASC, volume ASC/);
-  assert.doesNotMatch(calls[3], /SELECT[\s\S]*\bvolume\b/i);
-  assert.match(calls[3], /ORDER BY title ASC$/);
+  assert.doesNotMatch(calls[3], /SELECT[\s\S]*\bcover\b/i);
+  assert.match(calls[3], /ORDER BY title ASC, volume ASC/);
+  assert.doesNotMatch(calls[4], /SELECT[\s\S]*\bvolume\b/i);
+  assert.match(calls[4], /ORDER BY title ASC$/);
+});
+
+test('GET /api/books falls back to no-cover legacy query when cover is missing', async (t) => {
+  const calls = [];
+
+  t.mock.method(db, 'query', async (sql) => {
+    calls.push(sql);
+
+    if (calls.length <= 3) {
+      const err = new Error('column "cover" does not exist');
+      err.code = '42703';
+      throw err;
+    }
+
+    return {
+      rows: [{
+        title: 'Legacy Book',
+        author: 'Legacy Author',
+        genre: 'Adventure',
+        description: 'Legacy Desc',
+        price: '9.99',
+        volume: 'Vol 2',
+        type: 'Manga',
+        publisher: 'Legacy Publisher',
+      }],
+    };
+  });
+
+  await withServer(async (port) => {
+    const response = await fetch(`http://127.0.0.1:${port}/api/books`);
+    const payload = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(payload[0].volumes[0].volumeNumber, 2);
+    assert.equal(payload[0].volumes[0].cover, null);
+  });
+
+  assert.match(calls[0], /\bcover\b/);
+  assert.match(calls[1], /\bcover\b/);
+  assert.match(calls[2], /\bcover\b/);
+  assert.doesNotMatch(calls[3], /SELECT[\s\S]*\bcover\b/i);
+  assert.match(calls[3], /ORDER BY title ASC, volume ASC/);
 });
 
 // ---------------------------------------------------------------------------

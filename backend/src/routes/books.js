@@ -16,34 +16,34 @@ const booksLimiter = rateLimit({
 const BOOKS_QUERY = 'SELECT book_id, title, author, genre, description, price, volume, cover, type, publisher, keywords, page_count, release_date FROM books ORDER BY title ASC, volume ASC';
 const BOOKS_QUERY_NO_BOOK_ID = 'SELECT title, author, genre, description, price, volume, cover, type, publisher, keywords, page_count, release_date FROM books ORDER BY title ASC, volume ASC';
 const BOOKS_QUERY_LEGACY = 'SELECT title, author, genre, description, price, volume, cover, type, publisher FROM books ORDER BY title ASC, volume ASC';
+const BOOKS_QUERY_LEGACY_NO_COVER = 'SELECT title, author, genre, description, price, volume, type, publisher FROM books ORDER BY title ASC, volume ASC';
 const BOOKS_QUERY_LEGACY_NO_VOLUME = 'SELECT title, author, genre, description, price, cover, type, publisher FROM books ORDER BY title ASC';
+const BOOKS_QUERY_LEGACY_NO_VOLUME_NO_COVER = 'SELECT title, author, genre, description, price, type, publisher FROM books ORDER BY title ASC';
 const POSTGRES_UNDEFINED_COLUMN = '42703';
 
 const queryBooks = async () => {
-  try {
-    return await db.query(BOOKS_QUERY);
-  } catch (error) {
-    if (error?.code !== POSTGRES_UNDEFINED_COLUMN) {
-      throw error;
-    }
+  const fallbackQueries = [
+    BOOKS_QUERY,
+    BOOKS_QUERY_NO_BOOK_ID,
+    BOOKS_QUERY_LEGACY,
+    BOOKS_QUERY_LEGACY_NO_COVER,
+    BOOKS_QUERY_LEGACY_NO_VOLUME,
+    BOOKS_QUERY_LEGACY_NO_VOLUME_NO_COVER,
+  ];
 
+  let latestError = null;
+  for (const sql of fallbackQueries) {
     try {
-      return await db.query(BOOKS_QUERY_NO_BOOK_ID);
-    } catch (noBookIdError) {
-      if (noBookIdError?.code !== POSTGRES_UNDEFINED_COLUMN) {
-        throw noBookIdError;
+      return await db.query(sql);
+    } catch (error) {
+      if (error?.code !== POSTGRES_UNDEFINED_COLUMN) {
+        throw error;
       }
-
-      try {
-        return await db.query(BOOKS_QUERY_LEGACY);
-      } catch (legacyError) {
-        if (legacyError?.code !== POSTGRES_UNDEFINED_COLUMN) {
-          throw legacyError;
-        }
-        return db.query(BOOKS_QUERY_LEGACY_NO_VOLUME);
-      }
+      latestError = error;
     }
   }
+
+  throw latestError;
 };
 
 router.get('/api/books', booksLimiter, async (req, res) => {
@@ -70,9 +70,9 @@ router.get('/api/books', booksLimiter, async (req, res) => {
       const parsedVolume = Number(normalizedVolume);
       grouped[row.title].volumes.push({
         volumeNumber: normalizedVolume !== '' && Number.isFinite(parsedVolume) ? parsedVolume : null,
-        cover: row.cover,
-        page_count: row.page_count,
-        release_date: row.release_date,
+        cover: row.cover ?? null,
+        page_count: row.page_count ?? null,
+        release_date: row.release_date ?? null,
       });
     }
 
