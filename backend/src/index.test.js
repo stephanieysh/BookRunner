@@ -187,7 +187,7 @@ test('GET /api/books falls back to no-volume legacy query when volume is also mi
   t.mock.method(db, 'query', async (sql) => {
     calls.push(sql);
 
-    if (calls.length <= 3) {
+    if (calls.length <= 4) {
       const err = new Error('column does not exist');
       err.code = '42703';
       throw err;
@@ -222,8 +222,52 @@ test('GET /api/books falls back to no-volume legacy query when volume is also mi
   assert.doesNotMatch(calls[2], /SELECT[\s\S]*\bbook_id\b/i);
   assert.doesNotMatch(calls[2], /\bkeywords\b/);
   assert.match(calls[2], /ORDER BY title ASC, volume ASC/);
-  assert.doesNotMatch(calls[3], /SELECT[\s\S]*\bvolume\b/i);
-  assert.match(calls[3], /ORDER BY title ASC$/);
+  assert.doesNotMatch(calls[3], /SELECT[\s\S]*\bcover\b/i);
+  assert.match(calls[3], /ORDER BY title ASC, volume ASC/);
+  assert.doesNotMatch(calls[4], /SELECT[\s\S]*\bvolume\b/i);
+  assert.match(calls[4], /ORDER BY title ASC$/);
+});
+
+test('GET /api/books falls back to no-cover legacy query when cover is missing', async (t) => {
+  const calls = [];
+
+  t.mock.method(db, 'query', async (sql) => {
+    calls.push(sql);
+
+    if (calls.length <= 3) {
+      const err = new Error('column "cover" does not exist');
+      err.code = '42703';
+      throw err;
+    }
+
+    return {
+      rows: [{
+        title: 'Legacy Book',
+        author: 'Legacy Author',
+        genre: 'Adventure',
+        description: 'Legacy Desc',
+        price: '9.99',
+        volume: 'Vol 2',
+        type: 'Manga',
+        publisher: 'Legacy Publisher',
+      }],
+    };
+  });
+
+  await withServer(async (port) => {
+    const response = await fetch(`http://127.0.0.1:${port}/api/books`);
+    const payload = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(payload[0].volumes[0].volumeNumber, 2);
+    assert.equal(payload[0].volumes[0].cover, null);
+  });
+
+  assert.match(calls[0], /\bcover\b/);
+  assert.match(calls[1], /\bcover\b/);
+  assert.match(calls[2], /\bcover\b/);
+  assert.doesNotMatch(calls[3], /SELECT[\s\S]*\bcover\b/i);
+  assert.match(calls[3], /ORDER BY title ASC, volume ASC/);
 });
 
 // ---------------------------------------------------------------------------
