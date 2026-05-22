@@ -3,19 +3,18 @@ const chrome = require('selenium-webdriver/chrome');
 
 // Change this when moving from localhost to staging and production
 const BASE_URL = process.env.BASE_URL || 'http://localhost:8080';
-const TEST_EMAIL = process.env.E2E_EMAIL || 'test@gmail.com';
-const TEST_PASSWORD = process.env.E2E_PASSWORD || 'tester123';
+const TEST_EMAIL = 'test@gmail.com';
+const TEST_PASSWORD = 'tester123';
 const DEFAULT_TIMEOUT = 10000;
 
 jest.setTimeout(60000);
-
 // Custom browser driver
 function createDriver() {
   const options = new chrome.Options();
 
   options.addArguments(
-    '--headless=new',
     '--window-size=1920,1080',
+    '--headless=new',
     '--no-sandbox',
     '--disable-dev-shm-usage',
     '--disable-gpu',
@@ -210,7 +209,7 @@ test('user can register a new account', async () => {
     By.xpath("//label[contains(., 'Username')]/following::input[1]")
   );
   await usernameInput.clear();
-  await usernameInput.sendKeys('Test User');
+  await usernameInput.sendKeys('Test');
 
   // 4. Enter email
   const emailInput = await waitVisible(
