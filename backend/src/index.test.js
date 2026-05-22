@@ -1050,6 +1050,77 @@ test('POST /api/cart returns 404 when catalog book_id is null', async (t) => {
   });
 });
 
+test('POST /api/cart succeeds when catalog book cover is null', async (t) => {
+  const userId = 'user-uuid-1';
+  const token = makeToken(userId);
+
+  t.mock.method(db, 'query', async (sql) => {
+    if (/SELECT[\s\S]*FROM books/i.test(sql)) {
+      return {
+        rows: [{
+          book_id: 'COTE001',
+          title: 'Classroom of the Elite',
+          volume: 'Vol 1',
+          cover: null,
+          price: 14,
+        }],
+      };
+    }
+    throw new Error(`Unexpected SQL: ${sql}`);
+  });
+
+  t.mock.method(db, 'connect', async () => ({
+    query: async (sql, params) => {
+      if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') {
+        return { rows: [], rowCount: null };
+      }
+      if (/SELECT pg_advisory_xact_lock/i.test(sql)) {
+        return { rows: [{ pg_advisory_xact_lock: null }] };
+      }
+      if (/SELECT id, quantity[\s\S]*FOR UPDATE/i.test(sql)) {
+        return { rows: [] };
+      }
+      if (/INSERT INTO cart_items/i.test(sql)) {
+        return {
+          rows: [{
+            id: 'cart-null-cover',
+            user_id: params[0],
+            book_id: params[1],
+            book_title: params[2],
+            volume: params[3],
+            cover: params[4],
+            price: String(params[5]),
+            quantity: params[6],
+          }],
+        };
+      }
+      throw new Error(`Unexpected client SQL: ${sql}`);
+    },
+    release: () => {},
+  }));
+
+  await withServer(async (port) => {
+    const response = await fetch(`http://127.0.0.1:${port}/api/cart`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        book_title: 'Classroom of the Elite',
+        volume: '1',
+        quantity: 1,
+      }),
+    });
+
+    assert.equal(response.status, 201);
+
+    const payload = await response.json();
+    assert.equal(payload.book_title, 'Classroom of the Elite');
+    assert.equal(payload.cover, '');
+  });
+});
+
 test('POST /api/cart serializes concurrent writes for the same cart key', async (t) => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
