@@ -101,7 +101,7 @@ test('OPTIONS preflight rejects disallowed origins', async () => {
   });
 });
 
-test('GET /resources/api_books.php returns 200 when a row has null volume', async (t) => {
+test('GET /api/books returns 200 when a row has null volume', async (t) => {
   t.mock.method(db, 'query', async () => ({
     rows: [{
       book_id: 'book-1',
@@ -121,7 +121,7 @@ test('GET /resources/api_books.php returns 200 when a row has null volume', asyn
   }));
 
   await withServer(async (port) => {
-    const response = await fetch(`http://127.0.0.1:${port}/resources/api_books.php`);
+    const response = await fetch(`http://127.0.0.1:${port}/api/books`);
     const payload = await response.json();
 
     assert.equal(response.status, 200);
