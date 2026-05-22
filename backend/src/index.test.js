@@ -115,6 +115,7 @@ test('startup migration adds missing books columns with IF NOT EXISTS', async (t
 
   assert.equal(calls.length, 3);
   assert.equal(calls[0], 'BEGIN');
+  assert.match(calls[1], /ALTER TABLE books ADD COLUMN IF NOT EXISTS volume VARCHAR\(50\)/i);
   assert.match(calls[1], /ALTER TABLE books ADD COLUMN IF NOT EXISTS cover TEXT/i);
   assert.match(calls[1], /ALTER TABLE books ADD COLUMN IF NOT EXISTS keywords TEXT/i);
   assert.match(calls[1], /ALTER TABLE books ADD COLUMN IF NOT EXISTS page_count INTEGER DEFAULT 0/i);
