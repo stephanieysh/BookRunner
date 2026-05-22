@@ -53,24 +53,6 @@ jobs:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: docker compose ps
 
-      - name: Seed E2E test user
-        env:
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-        run: |
-          docker compose exec -T db psql -U bookrunner -d bookrunner -c "
-          INSERT INTO users (name, email, password_hash)
-          VALUES (
-            'Tester',
-            '${{ secrets.E2E_EMAIL }}',
-            '\$2b\$10\$KYVbZ5JFVfqu0oV98LnZbu.eM7W/7QD1g4Rf9NdgV.5HL9f0Vg9vG'
-          )
-          ON CONFLICT (email) DO UPDATE
-          SET
-            name = EXCLUDED.name,
-            password_hash = EXCLUDED.password_hash,
-            updated_at = NOW();
-          "
-
       - name: Set up Node.js for Selenium tests
         uses: actions/setup-node@v4
         with:

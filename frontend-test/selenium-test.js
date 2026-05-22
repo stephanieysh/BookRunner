@@ -191,6 +191,74 @@ test('homepage loading', async () => {
   expect(await appRoot.isDisplayed()).toBe(true);
 });
 
+// Registration test
+test('user can register a new account', async () => {
+  // 1. Go to register page
+  await driver.get(`${BASE_URL}/#/register`);
+
+  await driver.wait(until.urlContains('/register'), DEFAULT_TIMEOUT);
+
+  // 2. Verify register page loaded
+  await waitVisible(
+    driver,
+    By.xpath("//*[contains(text(), 'Create Account')]")
+  );
+
+  // 3. Enter username
+  const usernameInput = await waitVisible(
+    driver,
+    By.xpath("//label[contains(., 'Username')]/following::input[1]")
+  );
+  await usernameInput.clear();
+  await usernameInput.sendKeys('Test User');
+
+  // 4. Enter email
+  const emailInput = await waitVisible(
+    driver,
+    By.xpath("//label[contains(., 'Email')]/following::input[1]")
+  );
+  await emailInput.clear();
+  await emailInput.sendKeys(TEST_EMAIL);
+
+  // 5. Enter password
+  const passwordInput = await waitVisible(
+    driver,
+    By.xpath("//label[contains(., 'Password')]/following::input[1]")
+  );
+  await passwordInput.clear();
+  await passwordInput.sendKeys(TEST_PASSWORD);
+
+  // 6. Enter confirm password
+  const confirmPasswordInput = await waitVisible(
+    driver,
+    By.xpath("//label[contains(., 'Confirm Password')]/following::input[1]")
+  );
+  await confirmPasswordInput.clear();
+  await confirmPasswordInput.sendKeys(TEST_PASSWORD);
+
+  // 7. Tick terms and conditions checkbox
+  const termsCheckbox = await waitClickable(
+    driver,
+    By.css('input[type="checkbox"]')
+  );
+
+  await driver.executeScript("arguments[0].click();", termsCheckbox);
+
+  // 8. Click Sign Up button
+  const signUpButton = await waitClickable(
+    driver,
+    By.xpath("//button[contains(., 'Sign Up')]")
+  );
+
+  await signUpButton.click();
+
+  // 9. Verify successful registration redirects to login page
+  await driver.wait(until.urlContains('/login'), DEFAULT_TIMEOUT);
+
+  const currentUrl = await driver.getCurrentUrl();
+  expect(currentUrl).toContain('/login');
+}, 60000);
+
 // Login test
 test('login redirects user to product page', async () => {
   await login(driver);
