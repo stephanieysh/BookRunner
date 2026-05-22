@@ -41,12 +41,12 @@ function signToken(user) {
 }
 
 // ---------------------------------------------------------------------------
-// POST /resources/api_user.php
+// POST /api/users
 //   Body contains `name` (or `username`) + `email` + `password`  → register
 //   Body contains only `email` + `password`                       → login
 // ---------------------------------------------------------------------------
 
-router.post('/resources/api_user.php', authLimiter, asyncHandler(async (req, res) => {
+router.post('/api/users', authLimiter, asyncHandler(async (req, res) => {
   const { email, password } = req.body ?? {};
   const name = req.body?.name ?? req.body?.username;
 
@@ -95,10 +95,10 @@ router.post('/resources/api_user.php', authLimiter, asyncHandler(async (req, res
 }));
 
 // ---------------------------------------------------------------------------
-// GET /resources/api_user.php/id/:id  – fetch profile (authenticated)
+// GET /api/users/id/:id  – fetch profile (authenticated)
 // ---------------------------------------------------------------------------
 
-router.get('/resources/api_user.php/id/:id', profileLimiter, requireAuth, asyncHandler(async (req, res) => {
+router.get('/api/users/id/:id', profileLimiter, requireAuth, asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   if (String(req.user.sub) !== String(id)) {
@@ -118,10 +118,10 @@ router.get('/resources/api_user.php/id/:id', profileLimiter, requireAuth, asyncH
 }));
 
 // ---------------------------------------------------------------------------
-// PUT /resources/api_user.php/id/:id  – update profile (authenticated)
+// PUT /api/users/id/:id  – update profile (authenticated)
 // ---------------------------------------------------------------------------
 
-router.put('/resources/api_user.php/id/:id', profileLimiter, requireAuth, asyncHandler(async (req, res) => {
+router.put('/api/users/id/:id', profileLimiter, requireAuth, asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   if (String(req.user.sub) !== String(id)) {

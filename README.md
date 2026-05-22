@@ -37,7 +37,7 @@ The frontend is served by nginx and API requests are proxied to the Express back
 
 Frontend API calls read `window.__APP_CONFIG__.API_BASE_URL` from `js/config.js`.
 
-- Default: `''` (empty string) → uses relative API paths such as `resources/api_user.php` (Docker/nginx proxy flow).
+- Default: `''` (empty string) → uses relative API paths such as `/api/users` (Docker/nginx proxy flow).
 - Local frontend + local backend: set `API_BASE_URL` to `http://localhost:3000`.
 - Staging: set `API_BASE_URL` to your staging backend URL.
 - Production: set `API_BASE_URL` to your production backend URL.
@@ -67,7 +67,7 @@ This Docker stack establishes the PostgreSQL-backed local application:
 - PostgreSQL service starts, becomes healthy, and runs `bookrunner.sql` (schema) then `insertbooks.sql` (catalog seed) when the data volume is first initialized
 - Backend receives `DATABASE_URL` and `JWT_SECRET` for PostgreSQL-backed auth
 
-`DATABASE_URL` is wired into the backend service environment for PostgreSQL-backed auth/profile/cart/orders flows. The book catalog is served from the database via `GET /resources/api_books.php` instead of the previous `books.json` file.
+`DATABASE_URL` is wired into the backend service environment for PostgreSQL-backed auth/profile/cart/orders flows. The book catalog is served from the database via `GET /api/books` instead of the previous `books.json` file.
 
 ## Local verification
 
@@ -84,7 +84,7 @@ Expected results:
 - PostgreSQL becomes healthy (`pg_isready` passes)
 - Schema tables (`users`, `cart_items`, `orders`, `order_items`, `books`) are created from `bookrunner.sql`
 - Backend `/health` returns `200 {"status":"ok"}`
-- Auth/profile requests under `/resources/api_user.php` are handled by the Express backend
+- Auth/profile requests under `/api/users` are handled by the Express backend
 - Frontend is accessible at `http://localhost:8080`
 - Backend health is accessible at `http://localhost:3000/health` and via proxy at `http://localhost:8080/health`
 

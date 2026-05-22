@@ -3,6 +3,7 @@
 require('dotenv').config();
 
 const express = require('express');
+const db = require('./db');
 const userRoutes = require('./routes/users');
 const cartRoutes = require('./routes/cart');
 const orderRoutes = require('./routes/orders');
@@ -15,6 +16,28 @@ const MAX_PORT = 65535;
 const CORS_METHODS = 'GET,POST,PUT,DELETE,OPTIONS';
 const CORS_HEADERS = 'Authorization,Content-Type';
 const CORS_MAX_AGE_SECONDS = '600';
+const BOOKS_SCHEMA_MIGRATION_SQL = `
+ALTER TABLE books ADD COLUMN IF NOT EXISTS volume VARCHAR(50);
+ALTER TABLE books ADD COLUMN IF NOT EXISTS cover TEXT;
+ALTER TABLE books ADD COLUMN IF NOT EXISTS keywords TEXT;
+ALTER TABLE books ADD COLUMN IF NOT EXISTS page_count INTEGER DEFAULT 0;
+ALTER TABLE books ADD COLUMN IF NOT EXISTS release_date VARCHAR(20);
+ALTER TABLE books ADD COLUMN IF NOT EXISTS book_id VARCHAR(120);
+
+UPDATE books
+SET volume = 'Vol ' || COALESCE(
+  NULLIF(SUBSTRING(cover FROM '_vol_([0-9]+)'), ''),
+  NULLIF(LTRIM(SUBSTRING(book_id FROM '([0-9]+)$'), '0'), ''),
+  '1'
+)
+WHERE volume IS NULL OR BTRIM(volume) = '';
+
+ALTER TABLE cart_items
+  ALTER COLUMN book_id TYPE VARCHAR(120) USING book_id::text;
+
+ALTER TABLE order_items
+  ALTER COLUMN book_id TYPE VARCHAR(120) USING book_id::text;
+`;
 
 const resolvePort = (rawPort) => {
   if (rawPort === undefined) {
@@ -63,6 +86,8 @@ const PORT = resolvePort(process.env.PORT);
 const HOST = process.env.HOST || '0.0.0.0';
 const allowedOrigins = resolveAllowedOrigins(process.env.FRONTEND_ORIGIN);
 
+app.set('trust proxy', 1);
+
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   if (!origin) {
@@ -105,10 +130,43 @@ app.use(orderRoutes);
 app.use(orderItemsRoutes);
 app.use(bookRoutes);
 
+const runStartupMigrations = async () => {
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(BOOKS_SCHEMA_MIGRATION_SQL);
+    await client.query('COMMIT');
+  } catch (error) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      // ignore rollback errors and preserve original migration error context
+    }
+    console.error('Startup books schema migration failed. Application may run with degraded catalog data if books columns are missing:', error);
+  } finally {
+    client.release();
+  }
+};
+
+const startServer = async () => {
+  await runStartupMigrations();
+  return new Promise((resolve, reject) => {
+    const server = app.listen(PORT, HOST, () => {
+      console.log(`BookRunner API running on http://${HOST}:${PORT}`);
+      resolve(server);
+    });
+
+    server.once('error', reject);
+  });
+};
+
 if (require.main === module) {
-  app.listen(PORT, HOST, () => {
-    console.log(`BookRunner API running on http://${HOST}:${PORT}`);
+  startServer().catch((error) => {
+    console.error('Failed to start BookRunner API:', error);
+    process.exitCode = 1;
   });
 }
 
 module.exports = app;
+module.exports.runStartupMigrations = runStartupMigrations;
+module.exports.startServer = startServer;

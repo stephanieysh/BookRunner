@@ -33,7 +33,7 @@ function extractBookVolume(bookId) {
   return parts[1] || null;
 }
 
-router.get('/resources/api_orders.php', ordersLimiter, requireAuth, asyncHandler(async (req, res) => {
+router.get('/api/orders', ordersLimiter, requireAuth, asyncHandler(async (req, res) => {
   const ordersResult = await db.query(
     `SELECT id, user_id, total_amount, status, created_at
      FROM orders
@@ -75,7 +75,7 @@ router.get('/resources/api_orders.php', ordersLimiter, requireAuth, asyncHandler
   return res.status(200).json({ success: true, data: payload });
 }));
 
-router.post('/resources/api_orders.php', ordersLimiter, requireAuth, asyncHandler(async (req, res) => {
+router.post('/api/orders', ordersLimiter, requireAuth, asyncHandler(async (req, res) => {
   const cartItemIds = normalizeCartItemIds(req.body?.cart_item_ids);
 
   if (cartItemIds.length === 0) {

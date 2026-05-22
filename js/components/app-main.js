@@ -127,8 +127,9 @@ const Home = {
   },
 
   mounted() {
-    const apiUrl = window.__APP_CONFIG__.getApiUrl("resources/api_books.php");
+    const apiUrl = window.__APP_CONFIG__.getApiUrl("api/books");
     fetch(apiUrl)
+<<<<<<< HEAD
       .then(async (res) => {
         const data = await res.json().catch(() => null);
         if (!res.ok) {
@@ -150,8 +151,24 @@ const Home = {
               cover: this.normalizeCoverPath(volume.cover),
             })) || [],
           }));
+=======
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to load data");
+        return res.json();
       })
-      .catch((err) => console.error("Error loading book data:", err));
+      .then((data) => {
+        if (!Array.isArray(data)) {
+          throw new Error("Catalog response is not an array");
+        }
+        this.books = data.filter(book =>
+          Array.isArray(book.keywords) && book.keywords.some(k => k.toLowerCase() === this.keyword.toLowerCase())
+        );
+>>>>>>> 5aacee9e675e6f9d5becebcf5d159356791714c5
+      })
+      .catch((err) => {
+        this.books = [];
+        console.error("Error loading book data:", err);
+      });
   },
 
   methods: {

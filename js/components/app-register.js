@@ -77,7 +77,7 @@ const Register = {
 
     async submitForm() {
       this.msg = "";
-      const userApiURL = window.__APP_CONFIG__.getApiUrl("resources/api_user.php");
+      const userApiURL = window.__APP_CONFIG__.getApiUrl("api/users");
       const { valid } = await this.$refs.form.validate();
 
       if (!valid) {

@@ -42,6 +42,7 @@ async function findCatalogItem({ bookId, bookTitle, volume }) {
     return null;
   }
 
+<<<<<<< HEAD
   let queryText;
   let queryParams;
 
@@ -98,11 +99,23 @@ async function findCatalogItem({ bookId, bookTitle, volume }) {
 
   const row = result.rows[0];
 
+=======
+  const rowBookId = normalizeText(row.book_id);
+  if (!rowBookId) {
+    return null;
+  }
+
+>>>>>>> 5aacee9e675e6f9d5becebcf5d159356791714c5
   return {
-    bookId: row.book_id,
+    bookId: rowBookId,
     bookTitle: row.title,
+<<<<<<< HEAD
     volume: String(row.volume_number),
     cover: row.cover,
+=======
+    volume: row.volume.replace('Vol ', ''),
+    cover: normalizeText(row.cover) || '',
+>>>>>>> 5aacee9e675e6f9d5becebcf5d159356791714c5
     price: Number(row.price),
   };
 }
