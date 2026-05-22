@@ -337,6 +337,11 @@ const Product = {
         clickCallback(pageNum) {
             this.currentPage = pageNum;
         },
+
+        normalizeCoverPath(path) {
+            if (!path) return "";
+            return path.startsWith("/") ? path : "/" + path.replace(/^\/+/, "");
+        },
     },
 
     computed: {
@@ -347,7 +352,7 @@ const Product = {
                 author: manga.author,
                 price: manga.price,
                 volumeNumber: volume.volumeNumber,
-                cover: volume.cover,
+                cover: this.normalizeCoverPath(volume.cover),
             }))
             );
 

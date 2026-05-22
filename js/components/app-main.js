@@ -141,9 +141,15 @@ const Home = {
           throw new Error('Book API returned unexpected data');
         }
 
-        this.books = data.filter(book =>
-          Array.isArray(book.keywords) && book.keywords.some(k => k.toLowerCase() === this.keyword.toLowerCase())
-        );
+        this.books = data
+          .filter(book => Array.isArray(book.keywords) && book.keywords.some(k => k.toLowerCase() === this.keyword.toLowerCase()))
+          .map((book) => ({
+            ...book,
+            volumes: book.volumes?.map((volume) => ({
+              ...volume,
+              cover: this.normalizeCoverPath(volume.cover),
+            })) || [],
+          }));
       })
       .catch((err) => console.error("Error loading book data:", err));
   },
@@ -153,6 +159,11 @@ const Home = {
       if (page >= 1 && page <= this.totalPages) {
         this.currentPage = page;
       }
+    },
+
+    normalizeCoverPath(path) {
+      if (!path) return "";
+      return path.startsWith("/") ? path : "/" + path.replace(/^\/+/, "");
     }
   }
 };

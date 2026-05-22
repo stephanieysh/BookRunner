@@ -120,7 +120,7 @@ const Book = {
               publisher: book.publisher,
               genre: book.genre,
               keywords: book.keywords,
-              cover: volume.cover,
+              cover: this.normalizeCoverPath(volume.cover),
               date: volume.release_date,
               page_count: volume.page_count,
               volume: volume.volumeNumber,
@@ -138,6 +138,11 @@ const Book = {
 
     decreaseQty() {
       if (this.quantity > 1) this.quantity--;
+    },
+
+    normalizeCoverPath(path) {
+      if (!path) return "";
+      return path.startsWith("/") ? path : "/" + path.replace(/^\/+/, "");
     },
 
     addToCart() {
