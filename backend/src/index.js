@@ -114,22 +114,40 @@ app.use(orderItemsRoutes);
 app.use(bookRoutes);
 
 const runStartupMigrations = async () => {
+  const client = await db.connect();
   try {
-    await db.query(BOOKS_SCHEMA_MIGRATION_SQL);
+    await client.query('BEGIN');
+    await client.query(BOOKS_SCHEMA_MIGRATION_SQL);
+    await client.query('COMMIT');
   } catch (error) {
-    console.error('Startup books schema migration failed:', error);
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      // ignore rollback errors and preserve original migration error context
+    }
+    console.error('Startup books schema migration failed. Application may run with degraded catalog data if books columns are missing:', error);
+  } finally {
+    client.release();
   }
 };
 
 const startServer = async () => {
   await runStartupMigrations();
-  app.listen(PORT, HOST, () => {
-    console.log(`BookRunner API running on http://${HOST}:${PORT}`);
+  return new Promise((resolve, reject) => {
+    const server = app.listen(PORT, HOST, () => {
+      console.log(`BookRunner API running on http://${HOST}:${PORT}`);
+      resolve(server);
+    });
+
+    server.once('error', reject);
   });
 };
 
 if (require.main === module) {
-  startServer();
+  startServer().catch((error) => {
+    console.error('Failed to start BookRunner API:', error);
+    process.exitCode = 1;
+  });
 }
 
 module.exports = app;
