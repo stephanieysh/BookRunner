@@ -125,6 +125,8 @@ test('startup migration adds missing books columns with IF NOT EXISTS', async (t
   assert.match(calls[1], /SUBSTRING\(cover FROM '_vol_\(\[0-9\]\+\)'/i);
   assert.match(calls[1], /SUBSTRING\(book_id FROM '\(\[0-9\]\+\)\$'/i);
   assert.match(calls[1], /WHERE volume IS NULL OR BTRIM\(volume\) = ''/i);
+  assert.match(calls[1], /UPDATE books[\s\S]*SET book_id = LOWER\(REGEXP_REPLACE\(title/i);
+  assert.match(calls[1], /WHERE book_id IS NULL OR BTRIM\(book_id\) = ''/i);
   assert.equal(calls[2], 'COMMIT');
 });
 
@@ -996,6 +998,50 @@ test('POST /api/cart adds a cart item with server-derived catalog data', async (
   assert.equal(writeCalls[3].params[4], 'images/one_piece_vol_1.jpg');
   assert.equal(writeCalls[3].params[5], 30);
   assert.equal(writeCalls[4].sql, 'COMMIT');
+});
+
+test('POST /api/cart returns 404 when catalog book_id is null', async (t) => {
+  const userId = 'user-uuid-1';
+  const token = makeToken(userId);
+
+  t.mock.method(db, 'query', async (sql) => {
+    if (/SELECT[\s\S]*FROM books/i.test(sql)) {
+      return {
+        rows: [{
+          book_id: null,
+          title: 'Classroom of the Elite',
+          volume: 'Vol 1',
+          cover: 'images/cote_vol_1.jpg',
+          price: 14,
+        }],
+      };
+    }
+    throw new Error(`Unexpected SQL: ${sql}`);
+  });
+
+  t.mock.method(db, 'connect', async () => ({
+    query: async () => { throw new Error('Should not reach transaction'); },
+    release: () => {},
+  }));
+
+  await withServer(async (port) => {
+    const response = await fetch(`http://127.0.0.1:${port}/api/cart`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        book_title: 'Classroom of the Elite',
+        volume: '1',
+        quantity: 1,
+      }),
+    });
+
+    assert.equal(response.status, 404);
+    const payload = await response.json();
+    assert.equal(payload.error, 'Book not found');
+  });
 });
 
 test('POST /api/cart serializes concurrent writes for the same cart key', async (t) => {
