@@ -39,8 +39,13 @@ async function findCatalogItem({ bookId, bookTitle, volume }) {
     return null;
   }
 
+  const rowBookId = normalizeText(row.book_id);
+  if (!rowBookId) {
+    return null;
+  }
+
   return {
-    bookId: row.book_id,
+    bookId: rowBookId,
     bookTitle: row.title,
     volume: row.volume.replace('Vol ', ''),
     cover: row.cover,

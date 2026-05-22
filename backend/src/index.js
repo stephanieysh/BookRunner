@@ -31,6 +31,10 @@ SET volume = 'Vol ' || COALESCE(
   '1'
 )
 WHERE volume IS NULL OR BTRIM(volume) = '';
+
+UPDATE books
+SET book_id = gen_random_uuid()::text
+WHERE book_id IS NULL OR BTRIM(book_id) = '';
 `;
 
 const resolvePort = (rawPort) => {
