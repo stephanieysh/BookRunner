@@ -42,11 +42,15 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Start application with Docker Compose
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: |
           docker compose up -d --build
           sleep 30
 
       - name: Check running containers
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: docker compose ps
 
       - name: Set up Node.js for Selenium tests
@@ -70,10 +74,14 @@ jobs:
 
       - name: Show Docker logs if tests fail
         if: failure()
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: docker compose logs
 
       - name: Stop Docker Compose
         if: always()
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: docker compose down
 
   build-backend:
