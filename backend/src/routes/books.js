@@ -27,7 +27,7 @@ const toList = (value) => {
   }
 
   if (Array.isArray(value)) {
-    return value.map(String).map((item) => item.trim()).filter(Boolean);
+    return value.map((item) => String(item).trim()).filter(Boolean);
   }
 
   return String(value).split(',').map((item) => item.trim()).filter(Boolean);
