@@ -16,19 +16,20 @@ const booksLimiter = rateLimit({
 const BOOKS_QUERY = 'SELECT book_id, title, author, genre, description, price, volume, cover, type, publisher, keywords, page_count, release_date FROM books ORDER BY title ASC, volume ASC';
 const BOOKS_QUERY_LEGACY = 'SELECT title, author, genre, description, price, volume, cover, type, publisher FROM books ORDER BY title ASC, volume ASC';
 const BOOKS_QUERY_LEGACY_NO_VOLUME = 'SELECT title, author, genre, description, price, cover, type, publisher FROM books ORDER BY title ASC';
+const POSTGRES_UNDEFINED_COLUMN = '42703';
 
 const queryBooks = async () => {
   try {
     return await db.query(BOOKS_QUERY);
   } catch (error) {
-    if (error?.code !== '42703') {
+    if (error?.code !== POSTGRES_UNDEFINED_COLUMN) {
       throw error;
     }
 
     try {
       return await db.query(BOOKS_QUERY_LEGACY);
     } catch (legacyError) {
-      if (legacyError?.code !== '42703') {
+      if (legacyError?.code !== POSTGRES_UNDEFINED_COLUMN) {
         throw legacyError;
       }
       return db.query(BOOKS_QUERY_LEGACY_NO_VOLUME);

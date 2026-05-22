@@ -166,6 +166,8 @@ test('GET /api/books falls back to legacy query when newer books columns are mis
     assert.equal(response.status, 200);
     assert.equal(payload[0].title, 'Legacy Book');
     assert.equal(payload[0].volumes[0].volumeNumber, 1);
+    assert.equal(payload[0].volumes[0].page_count, undefined);
+    assert.equal(payload[0].volumes[0].release_date, undefined);
     assert.deepEqual(payload[0].keywords, []);
   });
 
