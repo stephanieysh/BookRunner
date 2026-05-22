@@ -67,7 +67,20 @@ async function login(driver) {
   const loginButton = await waitClickable(driver, By.css('button[name="login-btn"]'));
   await loginButton.click();
 
-  await driver.wait(until.urlContains('/product'), DEFAULT_TIMEOUT);
+  try {
+    await driver.wait(until.urlContains('/product'), DEFAULT_TIMEOUT);
+  } catch (error) {
+    const currentUrl = await driver.getCurrentUrl();
+    const pageText = await driver.findElement(By.css('body')).getText();
+
+    console.log('Login failed in Selenium test.');
+    console.log('Current URL:', currentUrl);
+    console.log('Page text:', pageText);
+    console.log('TEST_EMAIL:', TEST_EMAIL);
+    console.log('Password length:', TEST_PASSWORD.length);
+
+    throw error;
+  }
 }
 
 // Search helper function
