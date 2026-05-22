@@ -1,0 +1,25 @@
+{
+  "name": "frontend-test",
+  "version": "1.0.0",
+  "description": "",
+  "main": "selenium-test.js",
+  "scripts": {
+    "test": "jest selenium-test.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "jest": "^30.4.2",
+    "selenium-webdriver": "^4.44.0"
+  },
+  "jest": {
+    "testMatch": [
+      "**/selenium-test.js"
+    ]
+  },
+  "dependencies": {
+    "bcrypt": "^6.0.0"
+  }
+}

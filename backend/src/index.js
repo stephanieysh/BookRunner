@@ -62,6 +62,13 @@ const resolveAllowedOrigins = (rawOrigins) => {
 const PORT = resolvePort(process.env.PORT);
 const HOST = process.env.HOST || '0.0.0.0';
 const allowedOrigins = resolveAllowedOrigins(process.env.FRONTEND_ORIGIN);
+const rawTrustProxy = process.env.TRUST_PROXY;
+
+if (rawTrustProxy !== undefined && rawTrustProxy !== '') {
+  const numericTrustProxy = Number(rawTrustProxy);
+  const trustProxy = Number.isNaN(numericTrustProxy) ? rawTrustProxy : numericTrustProxy;
+  app.set('trust proxy', trustProxy);
+}
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;

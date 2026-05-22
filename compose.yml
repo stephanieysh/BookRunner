@@ -27,9 +27,10 @@ services:
       NODE_ENV: ${NODE_ENV:-development}
       HOST: 0.0.0.0
       PORT: 3000
-      DATABASE_URL: ${DATABASE_URL:-postgresql://bookrunner:bookrunner@db:5432/bookrunner}
+      DATABASE_URL: postgresql://bookrunner:bookrunner@db:5432/bookrunner
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set – see .env.example}
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-}
+      TRUST_PROXY: ${TRUST_PROXY:-1}
     depends_on:
       db:
         condition: service_healthy
@@ -46,6 +47,8 @@ services:
       context: .
       dockerfile: docker/frontend/Dockerfile
     restart: unless-stopped
+    environment:
+      BACKEND_URL: ${BACKEND_URL:-http://backend:3000}
     depends_on:
       backend:
         condition: service_healthy

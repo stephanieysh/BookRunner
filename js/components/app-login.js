@@ -100,6 +100,7 @@ const Login = {
               <!-- Login Button -->
               <div class="mb-2">
                 <v-btn
+                  name="login-btn"
                   class="btn btn-theme-primary rounded-3"
                   block
                   size="large"
