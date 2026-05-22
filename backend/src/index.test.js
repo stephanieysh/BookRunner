@@ -121,6 +121,10 @@ test('startup migration adds missing books columns with IF NOT EXISTS', async (t
   assert.match(calls[1], /ALTER TABLE books ADD COLUMN IF NOT EXISTS page_count INTEGER DEFAULT 0/i);
   assert.match(calls[1], /ALTER TABLE books ADD COLUMN IF NOT EXISTS release_date VARCHAR\(20\)/i);
   assert.match(calls[1], /ALTER TABLE books ADD COLUMN IF NOT EXISTS book_id VARCHAR\(120\)/i);
+  assert.match(calls[1], /UPDATE books[\s\S]*SET volume = 'Vol ' \|\| COALESCE\(/i);
+  assert.match(calls[1], /SUBSTRING\(cover FROM '_vol_\(\[0-9\]\+\)'/i);
+  assert.match(calls[1], /SUBSTRING\(book_id FROM '\(\[0-9\]\+\)\$'/i);
+  assert.match(calls[1], /WHERE volume IS NULL OR BTRIM\(volume\) = ''/i);
   assert.equal(calls[2], 'COMMIT');
 });
 

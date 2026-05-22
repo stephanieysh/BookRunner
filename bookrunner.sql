@@ -75,3 +75,11 @@ ALTER TABLE books
 
 ALTER TABLE books
     ADD COLUMN IF NOT EXISTS release_date VARCHAR(20);
+
+UPDATE books
+SET volume = 'Vol ' || COALESCE(
+    NULLIF(SUBSTRING(cover FROM '_vol_([0-9]+)'), ''),
+    NULLIF(LTRIM(SUBSTRING(book_id FROM '([0-9]+)$'), '0'), ''),
+    '1'
+)
+WHERE volume IS NULL OR BTRIM(volume) = '';
