@@ -3,9 +3,8 @@ const chrome = require('selenium-webdriver/chrome');
 
 // Change this when moving from localhost to staging and production
 const BASE_URL = process.env.BASE_URL || 'http://localhost:8080';
-const TEST_EMAIL = process.env.E2E_EMAIL || 'test@gmail.com';
-const TEST_PASSWORD = process.env.E2E_PASSWORD || 'tester123';
 const DEFAULT_TIMEOUT = 10000;
+const TEST_USER_API_URL = `${BASE_URL}/api/users`;
 
 jest.setTimeout(60000);
 // Custom browser driver
@@ -52,16 +51,49 @@ async function waitClickable(driver, locator, timeout = DEFAULT_TIMEOUT) {
 }
 
 // Login helper function
-async function login(driver) {
+function createUniqueCredentials(label = 'user') {
+  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return {
+    name: `Test ${label}`,
+    email: `${label}-${suffix}@example.com`,
+    password: `TestPass!${suffix}`,
+  };
+}
+
+async function registerUser(credentials) {
+  const response = await fetch(TEST_USER_API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: credentials.name,
+      email: credentials.email,
+      password: credentials.password,
+    }),
+  });
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok || !data?.success) {
+    throw new Error(`Failed to create test user (${response.status}): ${JSON.stringify(data)}`);
+  }
+}
+
+async function createAccountAndLogin(driver, label) {
+  const credentials = createUniqueCredentials(label);
+  await registerUser(credentials);
+  await login(driver, credentials);
+  return credentials;
+}
+
+async function login(driver, credentials) {
   await driver.get(`${BASE_URL}/#/login`);
 
   const emailInput = await waitVisible(driver, By.css('input[name="email"]'));
   await emailInput.clear();
-  await emailInput.sendKeys(TEST_EMAIL);
+  await emailInput.sendKeys(credentials.email);
 
   const passwordInput = await waitVisible(driver, By.css('input[name="password"]'));
   await passwordInput.clear();
-  await passwordInput.sendKeys(TEST_PASSWORD);
+  await passwordInput.sendKeys(credentials.password);
 
   const loginButton = await waitClickable(driver, By.css('button[name="login-btn"]'));
   await loginButton.click();
@@ -75,8 +107,8 @@ async function login(driver) {
     console.log('Login failed in Selenium test.');
     console.log('Current URL:', currentUrl);
     console.log('Page text:', pageText);
-    console.log('TEST_EMAIL:', TEST_EMAIL);
-    console.log('Password length:', TEST_PASSWORD.length);
+    console.log('TEST_EMAIL:', credentials.email);
+    console.log('Password length:', credentials.password.length);
 
     throw error;
   }
@@ -192,6 +224,8 @@ test('homepage loading', async () => {
 
 // Registration test
 test('user can register a new account', async () => {
+  const credentials = createUniqueCredentials('register');
+
   // 1. Go to register page
   await driver.get(`${BASE_URL}/#/register`);
 
@@ -209,7 +243,7 @@ test('user can register a new account', async () => {
     By.xpath("//label[contains(., 'Username')]/following::input[1]")
   );
   await usernameInput.clear();
-  await usernameInput.sendKeys('Test');
+  await usernameInput.sendKeys(credentials.name);
 
   // 4. Enter email
   const emailInput = await waitVisible(
@@ -217,7 +251,7 @@ test('user can register a new account', async () => {
     By.xpath("//label[contains(., 'Email')]/following::input[1]")
   );
   await emailInput.clear();
-  await emailInput.sendKeys(TEST_EMAIL);
+  await emailInput.sendKeys(credentials.email);
 
   // 5. Enter password
   const passwordInput = await waitVisible(
@@ -225,7 +259,7 @@ test('user can register a new account', async () => {
     By.xpath("//label[contains(., 'Password')]/following::input[1]")
   );
   await passwordInput.clear();
-  await passwordInput.sendKeys(TEST_PASSWORD);
+  await passwordInput.sendKeys(credentials.password);
 
   // 6. Enter confirm password
   const confirmPasswordInput = await waitVisible(
@@ -233,7 +267,7 @@ test('user can register a new account', async () => {
     By.xpath("//label[contains(., 'Confirm Password')]/following::input[1]")
   );
   await confirmPasswordInput.clear();
-  await confirmPasswordInput.sendKeys(TEST_PASSWORD);
+  await confirmPasswordInput.sendKeys(credentials.password);
 
   // 7. Tick terms and conditions checkbox
   const termsCheckbox = await waitClickable(
@@ -260,7 +294,7 @@ test('user can register a new account', async () => {
 
 // Login test
 test('login redirects user to product page', async () => {
-  await login(driver);
+  await createAccountAndLogin(driver, 'login');
 
   const currentUrl = await driver.getCurrentUrl();
   expect(currentUrl).toContain('/product');
@@ -287,7 +321,7 @@ test('search product displays One Piece result', async () => {
 
 // Add to cart test
 test('add a book to cart after login', async () => {
-  await login(driver);
+  await createAccountAndLogin(driver, 'cart');
   await searchProduct(driver, 'One Piece');
   await openProduct(driver, 'One Piece');
   await addCurrentBookToCart(driver);
@@ -302,8 +336,8 @@ test('add a book to cart after login', async () => {
 
 // Cart to purchase test
 test('create purchase from cart after adding a book', async () => {
-  // 1. Login
-  await login(driver);
+  // 1. Create a fresh account and login
+  await createAccountAndLogin(driver, 'purchase');
 
   // 2. Search for a known product
   await searchProduct(driver, 'One Piece');
@@ -382,8 +416,11 @@ test('create purchase from cart after adding a book', async () => {
 
 // Reset password test
 test('user can reset password from profile page', async () => {
-  // 1. Login first
-  await login(driver);
+  const credentials = await createAccountAndLogin(driver, 'reset');
+  const updatedCredentials = {
+    ...credentials,
+    password: `${credentials.password}-new`,
+  };
 
   // 2. Navigate to profile page
   await driver.get(`${BASE_URL}/#/profile`);
@@ -410,7 +447,7 @@ test('user can reset password from profile page', async () => {
   );
 
   await newPasswordInput.clear();
-  await newPasswordInput.sendKeys('tester123');
+  await newPasswordInput.sendKeys(updatedCredentials.password);
 
   // 6. Enter confirm new password
   const confirmPasswordInput = await waitVisible(
@@ -419,7 +456,7 @@ test('user can reset password from profile page', async () => {
   );
 
   await confirmPasswordInput.clear();
-  await confirmPasswordInput.sendKeys('tester123');
+  await confirmPasswordInput.sendKeys(updatedCredentials.password);
 
   // 7. Click Reset Password submit button
   const submitResetButton = await waitClickable(
@@ -436,12 +473,15 @@ test('user can reset password from profile page', async () => {
   );
 
   expect(await successMessage.isDisplayed()).toBe(true);
+
+  await login(driver, updatedCredentials);
+  expect(await driver.getCurrentUrl()).toContain('/product');
 }, 60000);
 
 // Log out test
 test('user can log out after login', async () => {
   // 1. Login first
-  await login(driver);
+  await createAccountAndLogin(driver, 'logout');
 
   // 2. Navigate to profile page where the Log Out button exists
   await driver.get(`${BASE_URL}/#/profile`);

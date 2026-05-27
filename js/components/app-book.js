@@ -102,10 +102,16 @@ const Book = {
 
   methods: {
     fetchBookDetails() {
-      const apiUrl = window.__APP_CONFIG__.getApiUrl("resources/api_books.php");
+      const apiUrl = window.__APP_CONFIG__.getApiUrl("api/books");
       fetch(apiUrl)
-        .then((response) => response.json())
+        .then((response) => {
+          if (!response.ok) throw new Error("Failed to load data");
+          return response.json();
+        })
         .then((data) => {
+          if (!Array.isArray(data)) {
+            throw new Error("Catalog response is not an array");
+          }
           const book = data.find((b) => b.title === this.title);
           const volume = book?.volumes.find((v) => v.volumeNumber == this.volume);
 
@@ -139,7 +145,7 @@ const Book = {
     },
 
     addToCart() {
-      const cartApiURL = window.__APP_CONFIG__.getApiUrl("resources/api_cart.php");
+      const cartApiURL = window.__APP_CONFIG__.getApiUrl("api/cart");
       const token = this.authState?.user?.token;
       if (!this.authState?.isLoggedIn || !token) {
         this.$router.push("/login");

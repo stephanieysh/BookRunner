@@ -13,11 +13,54 @@ const booksLimiter = rateLimit({
   message: { error: 'Too many requests, please try again later' },
 });
 
-router.get('/resources/api_books.php', booksLimiter, async (req, res) => {
+const BOOKS_QUERY = 'SELECT book_id, title, author, genre, description, price, volume, cover, type, publisher, keywords, page_count, release_date FROM books ORDER BY title ASC, volume ASC';
+const BOOKS_QUERY_NO_BOOK_ID = 'SELECT title, author, genre, description, price, volume, cover, type, publisher, keywords, page_count, release_date FROM books ORDER BY title ASC, volume ASC';
+const BOOKS_QUERY_LEGACY = 'SELECT title, author, genre, description, price, volume, cover, type, publisher FROM books ORDER BY title ASC, volume ASC';
+const BOOKS_QUERY_LEGACY_NO_COVER = 'SELECT title, author, genre, description, price, volume, type, publisher FROM books ORDER BY title ASC, volume ASC';
+const BOOKS_QUERY_LEGACY_NO_VOLUME = 'SELECT title, author, genre, description, price, cover, type, publisher FROM books ORDER BY title ASC';
+const BOOKS_QUERY_LEGACY_NO_VOLUME_NO_COVER = 'SELECT title, author, genre, description, price, type, publisher FROM books ORDER BY title ASC';
+const POSTGRES_UNDEFINED_COLUMN = '42703';
+
+const toList = (value) => {
+  if (value == null) {
+    return [];
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean);
+  }
+
+  return String(value).split(',').map((item) => item.trim()).filter(Boolean);
+};
+
+const queryBooks = async () => {
+  const fallbackQueries = [
+    BOOKS_QUERY,
+    BOOKS_QUERY_NO_BOOK_ID,
+    BOOKS_QUERY_LEGACY,
+    BOOKS_QUERY_LEGACY_NO_COVER,
+    BOOKS_QUERY_LEGACY_NO_VOLUME,
+    BOOKS_QUERY_LEGACY_NO_VOLUME_NO_COVER,
+  ];
+
+  let latestError = null;
+  for (const sql of fallbackQueries) {
+    try {
+      return await db.query(sql);
+    } catch (error) {
+      if (error?.code !== POSTGRES_UNDEFINED_COLUMN) {
+        throw error;
+      }
+      latestError = error;
+    }
+  }
+
+  throw latestError;
+};
+
+router.get('/api/books', booksLimiter, async (req, res) => {
   try {
-    const result = await db.query(
-      'SELECT book_id, title, author, genre, description, price, volume, cover, type, publisher, keywords, page_count, release_date FROM books ORDER BY title ASC, volume ASC'
-    );
+    const result = await queryBooks();
 
     const grouped = {};
     for (const row of result.rows) {
@@ -25,20 +68,23 @@ router.get('/resources/api_books.php', booksLimiter, async (req, res) => {
         grouped[row.title] = {
           title: row.title,
           author: row.author,
-          genre: row.genre ? row.genre.split(',').map(g => g.trim()) : [],
+          genre: toList(row.genre),
           type: row.type,
           publisher: row.publisher,
-          keywords: row.keywords ? row.keywords.split(',').map(k => k.trim()) : [],
+          keywords: toList(row.keywords),
           price: Number(row.price),
           description: row.description,
           volumes: [],
         };
       }
+      const rawVolume = String(row.volume ?? '');
+      const normalizedVolume = rawVolume.replace('Vol ', '').trim();
+      const parsedVolume = Number(normalizedVolume);
       grouped[row.title].volumes.push({
-        volumeNumber: Number(row.volume.replace('Vol ', '')),
-        cover: row.cover,
-        page_count: row.page_count,
-        release_date: row.release_date,
+        volumeNumber: normalizedVolume !== '' && Number.isFinite(parsedVolume) ? parsedVolume : null,
+        cover: row.cover ?? null,
+        page_count: row.page_count ?? null,
+        release_date: row.release_date ?? null,
       });
     }
 

@@ -18,7 +18,7 @@ const Profile = {
     fetchProfile() {
       const userId = this.authState.user?.id;
       const token = this.authState.user?.token;
-      const userApiURL = window.__APP_CONFIG__.getApiUrl(`resources/api_user.php/id/${userId}`);
+      const userApiURL = window.__APP_CONFIG__.getApiUrl(`api/users/id/${userId}`);
       if (this.authState.isLoggedIn && userId && token) {
         fetch(userApiURL, {
           headers: { Authorization: `Bearer ${token}` },
@@ -34,7 +34,7 @@ const Profile = {
     },
 
     fetchRecentPurchases() {
-      const ordersApiURL = window.__APP_CONFIG__.getApiUrl("resources/api_orders.php");
+      const ordersApiURL = window.__APP_CONFIG__.getApiUrl("api/orders");
       const token = this.authState.user?.token;
       if (this.authState.isLoggedIn && token) {
         fetch(ordersApiURL, {
@@ -56,7 +56,7 @@ const Profile = {
     saveProfile() {
       const userId = this.authState.user?.id;
       const token = this.authState.user?.token;
-      const userApiURL = window.__APP_CONFIG__.getApiUrl(`resources/api_user.php/id/${userId}`);
+      const userApiURL = window.__APP_CONFIG__.getApiUrl(`api/users/id/${userId}`);
       if (this.authState.isLoggedIn && userId && token) {
         fetch(userApiURL, {
           method: "PUT",

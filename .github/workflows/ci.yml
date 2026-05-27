@@ -1,8 +1,6 @@
-name: CI
+name: CI - Docker builds
 
-# Frontend Selenium/integration tests are not yet included because no Selenium
-# test infrastructure exists in this repository. They are tracked in issue #10
-# and will be added in a dedicated CI job once that work is complete.
+# Tests are now in test.yml. This workflow only builds Docker images.
 
 on:
   push:
@@ -11,87 +9,13 @@ on:
     branches: ["**"]
 
 jobs:
-  test:
-    name: Backend tests
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: backend/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run tests
-        run: npm test
-  
-  selenium-e2e-tests:
-    name: Frontend Selenium E2E tests
-    runs-on: ubuntu-latest
-    needs: test
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Start application with Docker Compose
-        env:
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-        run: docker compose up -d --build --wait
-
-      - name: Check running containers
-        env:
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-        run: docker compose ps
-
-      - name: Set up Node.js for Selenium tests
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: frontend-test/package-lock.json
-
-      - name: Install Selenium test dependencies
-        working-directory: frontend-test
-        run: npm ci
-
-      - name: Run Selenium E2E tests
-        working-directory: frontend-test
-        env:
-          BASE_URL: http://localhost:8080
-          E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
-          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
-        run: npm test
-
-      - name: Show Docker logs if tests fail
-        if: failure()
-        env:
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-        run: docker compose logs
-
-      - name: Stop Docker Compose
-        if: always()
-        env:
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-        run: docker compose down
-
   build-backend:
     name: Build backend Docker image
     runs-on: ubuntu-latest
-    needs: [test, selenium-e2e-tests]
     steps:
       - uses: actions/checkout@v4
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
       - name: Build backend image
         uses: docker/build-push-action@v6
         with:
@@ -105,13 +29,10 @@ jobs:
   build-frontend:
     name: Build frontend Docker image
     runs-on: ubuntu-latest
-    needs: [test, selenium-e2e-tests]
     steps:
       - uses: actions/checkout@v4
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
       - name: Build frontend image
         uses: docker/build-push-action@v6
         with:

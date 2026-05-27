@@ -32,7 +32,7 @@ function extractBookVolume(bookId) {
   return parts[1] || null;
 }
 
-router.get('/resources/api_orders.php', ordersLimiter, requireAuth, asyncHandler(async (req, res) => {
+router.get('/api/orders', ordersLimiter, requireAuth, asyncHandler(async (req, res) => {
   const ordersResult = await db.query(
     `SELECT id, user_id, total_amount, status, created_at
      FROM orders
@@ -47,10 +47,12 @@ router.get('/resources/api_orders.php', ordersLimiter, requireAuth, asyncHandler
 
   const orderIds = ordersResult.rows.map((order) => order.id);
   const itemsResult = await db.query(
-    `SELECT id, order_id, book_id, title, unit_price, quantity, line_total
-     FROM order_items
-     WHERE order_id = ANY($1::uuid[])
-     ORDER BY id ASC`,
+    `SELECT oi.id, oi.order_id, oi.book_id, oi.title, oi.unit_price, oi.quantity, oi.line_total,
+            COALESCE(NULLIF(oi.cover, ''), b.cover, '') AS cover
+     FROM order_items AS oi
+     LEFT JOIN books AS b ON b.book_id = oi.book_id
+     WHERE oi.order_id = ANY($1::uuid[])
+     ORDER BY oi.id ASC`,
     [orderIds],
   );
 
@@ -74,7 +76,7 @@ router.get('/resources/api_orders.php', ordersLimiter, requireAuth, asyncHandler
   return res.status(200).json({ success: true, data: payload });
 }));
 
-router.post('/resources/api_orders.php', ordersLimiter, requireAuth, asyncHandler(async (req, res) => {
+router.post('/api/orders', ordersLimiter, requireAuth, asyncHandler(async (req, res) => {
   const cartItemIds = normalizeCartItemIds(req.body?.cart_item_ids);
 
   if (cartItemIds.length === 0) {
@@ -113,9 +115,9 @@ router.post('/resources/api_orders.php', ordersLimiter, requireAuth, asyncHandle
       const lineTotal = Number(item.unit_price) * Number(item.quantity);
 
       await db.query(
-        `INSERT INTO order_items (order_id, book_id, title, unit_price, quantity, line_total)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [orderId, item.book_id, item.title, item.unit_price, item.quantity, lineTotal],
+        `INSERT INTO order_items (order_id, book_id, title, cover, unit_price, quantity, line_total)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [orderId, item.book_id, item.title, item.cover, item.unit_price, item.quantity, lineTotal],
       );
     }
 

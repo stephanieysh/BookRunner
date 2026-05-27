@@ -27,7 +27,7 @@ services:
       NODE_ENV: ${NODE_ENV:-development}
       HOST: 0.0.0.0
       PORT: 3000
-      DATABASE_URL: postgresql://bookrunner:bookrunner@db:5432/bookrunner
+      DATABASE_URL: ${DATABASE_URL:-postgresql://bookrunner:bookrunner@db:5432/bookrunner}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set – see .env.example}
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-}
       TRUST_PROXY: ${TRUST_PROXY:-1}

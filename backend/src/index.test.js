@@ -65,7 +65,7 @@ test('GET /health sets CORS headers for allowed origin', async () => {
 
 test('OPTIONS preflight allows configured origin and auth/content-type headers', async () => {
   await withServer(async (port) => {
-    const response = await fetch(`http://127.0.0.1:${port}/resources/api_user.php`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/users`, {
       method: 'OPTIONS',
       headers: {
         Origin: 'https://frontend.example.com',
@@ -88,7 +88,7 @@ test('OPTIONS preflight allows configured origin and auth/content-type headers',
 
 test('OPTIONS preflight rejects disallowed origins', async () => {
   await withServer(async (port) => {
-    const response = await fetch(`http://127.0.0.1:${port}/resources/api_user.php`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/users`, {
       method: 'OPTIONS',
       headers: {
         Origin: 'https://malicious.example.com',
@@ -101,14 +101,338 @@ test('OPTIONS preflight rejects disallowed origins', async () => {
   });
 });
 
+test('startup migration adds missing books columns with IF NOT EXISTS', async (t) => {
+  const calls = [];
+  t.mock.method(db, 'connect', async () => ({
+    query: async (sql) => {
+      calls.push(sql);
+      return { rows: [] };
+    },
+    release: () => {},
+  }));
+
+  await app.runStartupMigrations();
+
+  assert.equal(calls.length, 3);
+  assert.equal(calls[0], 'BEGIN');
+  assert.match(calls[1], /ALTER TABLE books ADD COLUMN IF NOT EXISTS volume VARCHAR\(50\)/i);
+  assert.match(calls[1], /ALTER TABLE books ADD COLUMN IF NOT EXISTS cover TEXT/i);
+  assert.match(calls[1], /ALTER TABLE books ADD COLUMN IF NOT EXISTS keywords TEXT/i);
+  assert.match(calls[1], /ALTER TABLE books ADD COLUMN IF NOT EXISTS page_count INTEGER DEFAULT 0/i);
+  assert.match(calls[1], /ALTER TABLE books ADD COLUMN IF NOT EXISTS release_date VARCHAR\(20\)/i);
+  assert.match(calls[1], /ALTER TABLE books ADD COLUMN IF NOT EXISTS book_id VARCHAR\(120\)/i);
+  assert.match(calls[1], /UPDATE books[\s\S]*SET volume = 'Vol ' \|\| COALESCE\(/i);
+  assert.match(calls[1], /SUBSTRING\(cover FROM '_vol_\(\[0-9\]\+\)'/i);
+  assert.match(calls[1], /SUBSTRING\(book_id FROM '\(\[0-9\]\+\)\$'/i);
+  assert.match(calls[1], /WHERE volume IS NULL OR BTRIM\(volume\) = ''/i);
+  assert.match(
+    calls[1],
+    /ALTER TABLE cart_items[\s\S]*ALTER COLUMN book_id TYPE VARCHAR\(120\) USING book_id::text/i,
+  );
+  assert.match(
+    calls[1],
+    /ALTER TABLE order_items[\s\S]*ALTER COLUMN book_id TYPE VARCHAR\(120\) USING book_id::text/i,
+  );
+  assert.match(calls[1], /ALTER TABLE order_items[\s\S]*ADD COLUMN IF NOT EXISTS cover TEXT NOT NULL DEFAULT ''/i);
+  assert.match(calls[1], /UPDATE order_items AS oi[\s\S]*SET cover = b\.cover/i);
+  assert.match(calls[1], /FROM books AS b[\s\S]*WHERE oi\.book_id = b\.book_id/i);
+  assert.match(calls[1], /oi\.cover = ''/i);
+  assert.match(calls[1], /NULLIF\(BTRIM\(b\.cover\), ''\) IS NOT NULL/i);
+  assert.match(calls[1], /UPDATE books AS b SET\s+cover = v\.cover,/i);
+  assert.match(calls[1], /FROM \(VALUES/i);
+  assert.match(calls[1], /WHERE b\.title = v\.title\s+AND b\.volume = v\.volume/i);
+  assert.match(calls[1], /b\.cover IS NULL OR BTRIM\(b\.cover\) = ''/i);
+  assert.equal(calls[2], 'COMMIT');
+});
+
+test('startup migration logs error and rolls back transaction when migration fails', async (t) => {
+  const calls = [];
+  t.mock.method(db, 'connect', async () => ({
+    query: async (sql) => {
+      calls.push(sql);
+      if (sql === 'BEGIN') {
+        return { rows: [] };
+      }
+      if (sql === 'ROLLBACK') {
+        return { rows: [] };
+      }
+      throw new Error('migration failed');
+    },
+    release: () => {},
+  }));
+  const consoleErrorMock = t.mock.method(console, 'error', () => {});
+
+  await app.runStartupMigrations();
+
+  assert.equal(calls[0], 'BEGIN');
+  assert.equal(calls[2], 'ROLLBACK');
+  assert.equal(consoleErrorMock.mock.calls.length, 1);
+  const [firstCall] = consoleErrorMock.mock.calls;
+  const [firstMessage] = firstCall.arguments;
+  assert.match(String(firstMessage), /Startup books schema migration failed/);
+});
+
+test('GET /api/books returns 200 when a row has null volume', async (t) => {
+  t.mock.method(db, 'query', async () => ({
+    rows: [{
+      book_id: 'book-1',
+      title: 'Solo Leveling',
+      author: 'Chugong',
+      genre: 'Action, Fantasy',
+      description: 'Desc',
+      price: '39.90',
+      volume: null,
+      cover: '/images/solo.jpg',
+      type: 'Manga',
+      publisher: 'Yen Press',
+      keywords: 'Bestsellers, Popular',
+      page_count: 200,
+      release_date: '2025-01-01',
+    }],
+  }));
+
+  await withServer(async (port) => {
+    const response = await fetch(`http://127.0.0.1:${port}/api/books`);
+    const payload = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(Array.isArray(payload), true);
+    assert.equal(payload.length, 1);
+    assert.equal(payload[0].title, 'Solo Leveling');
+    assert.equal(payload[0].volumes[0].volumeNumber, null);
+  });
+});
+
+test('GET /api/books returns 200 when genre is an array', async (t) => {
+  t.mock.method(db, 'query', async () => ({
+    rows: [{
+      book_id: 'book-genre-array',
+      title: 'Array Genre Book',
+      author: 'Author',
+      genre: [' Action ', 'Fantasy', 7],
+      description: 'Desc',
+      price: '12.50',
+      volume: 'Vol 1',
+      cover: '/images/array-genre.jpg',
+      type: 'Manga',
+      publisher: 'Publisher',
+      keywords: 'Tag 1, Tag 2',
+      page_count: 180,
+      release_date: '2025-03-01',
+    }],
+  }));
+
+  await withServer(async (port) => {
+    const response = await fetch(`http://127.0.0.1:${port}/api/books`);
+    const payload = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(payload[0].genre, ['Action', 'Fantasy', '7']);
+  });
+});
+
+test('GET /api/books returns 200 when keywords is an array', async (t) => {
+  t.mock.method(db, 'query', async () => ({
+    rows: [{
+      book_id: 'book-keywords-array',
+      title: 'Array Keywords Book',
+      author: 'Author',
+      genre: 'Action, Fantasy',
+      description: 'Desc',
+      price: '15.00',
+      volume: 'Vol 2',
+      cover: '/images/array-keywords.jpg',
+      type: 'Manga',
+      publisher: 'Publisher',
+      keywords: [' Popular ', ' New ', 42],
+      page_count: 190,
+      release_date: '2025-04-01',
+    }],
+  }));
+
+  await withServer(async (port) => {
+    const response = await fetch(`http://127.0.0.1:${port}/api/books`);
+    const payload = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(payload[0].keywords, ['Popular', 'New', '42']);
+  });
+});
+
+test('GET /api/books accepts X-Forwarded-For header', async (t) => {
+  t.mock.method(db, 'query', async () => ({
+    rows: [{
+      book_id: 'book-forwarded-for',
+      title: 'Forwarded Header Book',
+      author: 'Author',
+      genre: 'Action',
+      description: 'Desc',
+      price: '18.00',
+      volume: 'Vol 1',
+      cover: '/images/forwarded-header.jpg',
+      type: 'Manga',
+      publisher: 'Publisher',
+      keywords: 'Popular',
+      page_count: 210,
+      release_date: '2025-05-01',
+    }],
+  }));
+
+  await withServer(async (port) => {
+    const response = await fetch(`http://127.0.0.1:${port}/api/books`, {
+      headers: { 'X-Forwarded-For': '203.0.113.10' },
+    });
+
+    assert.equal(response.status, 200);
+  });
+});
+
+test('GET /api/books falls back to legacy query when newer books columns are missing', async (t) => {
+  const calls = [];
+
+  t.mock.method(db, 'query', async (sql) => {
+    calls.push(sql);
+
+    if (calls.length === 1) {
+      const err = new Error('column "book_id" does not exist');
+      err.code = '42703';
+      throw err;
+    }
+
+    return {
+      rows: [{
+        title: 'Legacy Book',
+        author: 'Legacy Author',
+        genre: 'Adventure',
+        description: 'Legacy Desc',
+        price: '9.99',
+        volume: 'Vol 1',
+        cover: '/images/legacy.jpg',
+        type: 'Manga',
+        publisher: 'Legacy Publisher',
+        keywords: 'Bestsellers, Popular',
+        page_count: 212,
+        release_date: '2025-02-10',
+      }],
+    };
+  });
+
+  await withServer(async (port) => {
+    const response = await fetch(`http://127.0.0.1:${port}/api/books`);
+    const payload = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(payload[0].title, 'Legacy Book');
+    assert.equal(payload[0].volumes[0].volumeNumber, 1);
+    assert.equal(payload[0].volumes[0].page_count, 212);
+    assert.equal(payload[0].volumes[0].release_date, '2025-02-10');
+    assert.deepEqual(payload[0].keywords, ['Bestsellers', 'Popular']);
+  });
+
+  assert.match(calls[0], /SELECT book_id/);
+  assert.doesNotMatch(calls[1], /SELECT[\s\S]*\bbook_id\b/i);
+  assert.match(calls[1], /\bkeywords\b/);
+  assert.match(calls[1], /\bpage_count\b/);
+  assert.match(calls[1], /\brelease_date\b/);
+});
+
+test('GET /api/books falls back to no-volume legacy query when volume is also missing', async (t) => {
+  const calls = [];
+
+  t.mock.method(db, 'query', async (sql) => {
+    calls.push(sql);
+
+    if (calls.length <= 4) {
+      const err = new Error('column does not exist');
+      err.code = '42703';
+      throw err;
+    }
+
+    return {
+      rows: [{
+        title: 'Legacy Book',
+        author: 'Legacy Author',
+        genre: 'Adventure',
+        description: 'Legacy Desc',
+        price: '9.99',
+        cover: '/images/legacy.jpg',
+        type: 'Manga',
+        publisher: 'Legacy Publisher',
+      }],
+    };
+  });
+
+  await withServer(async (port) => {
+    const response = await fetch(`http://127.0.0.1:${port}/api/books`);
+    const payload = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(payload[0].volumes[0].volumeNumber, null);
+  });
+
+  assert.match(calls[0], /SELECT book_id/);
+  assert.doesNotMatch(calls[1], /SELECT[\s\S]*\bbook_id\b/i);
+  assert.match(calls[1], /\bkeywords\b/);
+  assert.match(calls[1], /ORDER BY title ASC, volume ASC/);
+  assert.doesNotMatch(calls[2], /SELECT[\s\S]*\bbook_id\b/i);
+  assert.doesNotMatch(calls[2], /\bkeywords\b/);
+  assert.match(calls[2], /ORDER BY title ASC, volume ASC/);
+  assert.doesNotMatch(calls[3], /SELECT[\s\S]*\bcover\b/i);
+  assert.match(calls[3], /ORDER BY title ASC, volume ASC/);
+  assert.doesNotMatch(calls[4], /SELECT[\s\S]*\bvolume\b/i);
+  assert.match(calls[4], /ORDER BY title ASC$/);
+});
+
+test('GET /api/books falls back to no-cover legacy query when cover is missing', async (t) => {
+  const calls = [];
+
+  t.mock.method(db, 'query', async (sql) => {
+    calls.push(sql);
+
+    if (calls.length <= 3) {
+      const err = new Error('column "cover" does not exist');
+      err.code = '42703';
+      throw err;
+    }
+
+    return {
+      rows: [{
+        title: 'Legacy Book',
+        author: 'Legacy Author',
+        genre: 'Adventure',
+        description: 'Legacy Desc',
+        price: '9.99',
+        volume: 'Vol 2',
+        type: 'Manga',
+        publisher: 'Legacy Publisher',
+      }],
+    };
+  });
+
+  await withServer(async (port) => {
+    const response = await fetch(`http://127.0.0.1:${port}/api/books`);
+    const payload = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(payload[0].volumes[0].volumeNumber, 2);
+    assert.equal(payload[0].volumes[0].cover, null);
+  });
+
+  assert.match(calls[0], /\bcover\b/);
+  assert.match(calls[1], /\bcover\b/);
+  assert.match(calls[2], /\bcover\b/);
+  assert.doesNotMatch(calls[3], /SELECT[\s\S]*\bcover\b/i);
+  assert.match(calls[3], /ORDER BY title ASC, volume ASC/);
+});
+
 // ---------------------------------------------------------------------------
-// POST /resources/api_user.php – input validation (no database required)
+// POST /api/users – input validation (no database required)
 // ---------------------------------------------------------------------------
 
-test('POST /resources/api_user.php returns 400 when body is empty', async () => {
+test('POST /api/users returns 400 when body is empty', async () => {
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php`,
+      `http://127.0.0.1:${port}/api/users`,
       { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' },
     );
     assert.equal(response.status, 400);
@@ -117,10 +441,10 @@ test('POST /resources/api_user.php returns 400 when body is empty', async () => 
   });
 });
 
-test('POST /resources/api_user.php returns 400 when password is missing', async () => {
+test('POST /api/users returns 400 when password is missing', async () => {
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php`,
+      `http://127.0.0.1:${port}/api/users`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -131,10 +455,10 @@ test('POST /resources/api_user.php returns 400 when password is missing', async 
   });
 });
 
-test('POST /resources/api_user.php returns 400 when email is missing', async () => {
+test('POST /api/users returns 400 when email is missing', async () => {
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php`,
+      `http://127.0.0.1:${port}/api/users`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -145,10 +469,10 @@ test('POST /resources/api_user.php returns 400 when email is missing', async () 
   });
 });
 
-test('POST /resources/api_user.php returns 400 when name is present but empty (registration)', async () => {
+test('POST /api/users returns 400 when name is present but empty (registration)', async () => {
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php`,
+      `http://127.0.0.1:${port}/api/users`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -162,10 +486,10 @@ test('POST /resources/api_user.php returns 400 when name is present but empty (r
 });
 
 // ---------------------------------------------------------------------------
-// POST /resources/api_user.php – registration (mocked db)
+// POST /api/users – registration (mocked db)
 // ---------------------------------------------------------------------------
 
-test('POST /resources/api_user.php registers a new user successfully', async (t) => {
+test('POST /api/users registers a new user successfully', async (t) => {
   t.mock.method(db, 'query', async (sql) => {
     // Email-check SELECT returns empty; INSERT returns nothing meaningful
     if (sql.includes('SELECT')) return { rows: [] };
@@ -174,7 +498,7 @@ test('POST /resources/api_user.php registers a new user successfully', async (t)
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php`,
+      `http://127.0.0.1:${port}/api/users`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -187,14 +511,14 @@ test('POST /resources/api_user.php registers a new user successfully', async (t)
   });
 });
 
-test('POST /resources/api_user.php returns 409 when email already registered', async (t) => {
+test('POST /api/users returns 409 when email already registered', async (t) => {
   t.mock.method(db, 'query', async () => {
     return { rows: [{ id: 'existing-id' }] };
   });
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php`,
+      `http://127.0.0.1:${port}/api/users`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -208,10 +532,10 @@ test('POST /resources/api_user.php returns 409 when email already registered', a
 });
 
 // ---------------------------------------------------------------------------
-// POST /resources/api_user.php – login (mocked db)
+// POST /api/users – login (mocked db)
 // ---------------------------------------------------------------------------
 
-test('POST /resources/api_user.php logs in and returns a JWT', async (t) => {
+test('POST /api/users logs in and returns a JWT', async (t) => {
   const bcrypt = require('bcryptjs');
   const hash = await bcrypt.hash('correctpassword', 4); // low rounds for speed
 
@@ -221,7 +545,7 @@ test('POST /resources/api_user.php logs in and returns a JWT', async (t) => {
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php`,
+      `http://127.0.0.1:${port}/api/users`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -240,7 +564,7 @@ test('POST /resources/api_user.php logs in and returns a JWT', async (t) => {
   });
 });
 
-test('POST /resources/api_user.php returns 401 for wrong password', async (t) => {
+test('POST /api/users returns 401 for wrong password', async (t) => {
   const bcrypt = require('bcryptjs');
   const hash = await bcrypt.hash('correctpassword', 4);
 
@@ -250,7 +574,7 @@ test('POST /resources/api_user.php returns 401 for wrong password', async (t) =>
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php`,
+      `http://127.0.0.1:${port}/api/users`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -261,12 +585,12 @@ test('POST /resources/api_user.php returns 401 for wrong password', async (t) =>
   });
 });
 
-test('POST /resources/api_user.php returns 401 when user not found', async (t) => {
+test('POST /api/users returns 401 when user not found', async (t) => {
   t.mock.method(db, 'query', async () => ({ rows: [] }));
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php`,
+      `http://127.0.0.1:${port}/api/users`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -277,14 +601,14 @@ test('POST /resources/api_user.php returns 401 when user not found', async (t) =
   });
 });
 
-test('POST /resources/api_user.php returns JSON 500 when database query fails', async (t) => {
+test('POST /api/users returns JSON 500 when database query fails', async (t) => {
   t.mock.method(db, 'query', async () => {
     throw new Error('database unavailable');
   });
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php`,
+      `http://127.0.0.1:${port}/api/users`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -299,22 +623,22 @@ test('POST /resources/api_user.php returns JSON 500 when database query fails', 
 });
 
 // ---------------------------------------------------------------------------
-// GET /resources/api_user.php/id/:id – auth required (no database required)
+// GET /api/users/id/:id – auth required (no database required)
 // ---------------------------------------------------------------------------
 
-test('GET /resources/api_user.php/id/:id returns 401 without Authorization header', async () => {
+test('GET /api/users/id/:id returns 401 without Authorization header', async () => {
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php/id/some-uuid`,
+      `http://127.0.0.1:${port}/api/users/id/some-uuid`,
     );
     assert.equal(response.status, 401);
   });
 });
 
-test('GET /resources/api_user.php/id/:id returns 401 with invalid token', async () => {
+test('GET /api/users/id/:id returns 401 with invalid token', async () => {
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php/id/some-uuid`,
+      `http://127.0.0.1:${port}/api/users/id/some-uuid`,
       { headers: { Authorization: 'Bearer not-a-valid-jwt' } },
     );
     assert.equal(response.status, 401);
@@ -322,22 +646,22 @@ test('GET /resources/api_user.php/id/:id returns 401 with invalid token', async 
 });
 
 // ---------------------------------------------------------------------------
-// GET /resources/api_user.php/id/:id – authenticated profile fetch (mocked db)
+// GET /api/users/id/:id – authenticated profile fetch (mocked db)
 // ---------------------------------------------------------------------------
 
-test('GET /resources/api_user.php/id/:id returns 403 when token user != path user', async () => {
+test('GET /api/users/id/:id returns 403 when token user != path user', async () => {
   const token = makeToken('other-uuid');
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php/id/target-uuid`,
+      `http://127.0.0.1:${port}/api/users/id/target-uuid`,
       { headers: { Authorization: `Bearer ${token}` } },
     );
     assert.equal(response.status, 403);
   });
 });
 
-test('GET /resources/api_user.php/id/:id returns 200 with own profile', async (t) => {
+test('GET /api/users/id/:id returns 200 with own profile', async (t) => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
 
@@ -347,7 +671,7 @@ test('GET /resources/api_user.php/id/:id returns 200 with own profile', async (t
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php/id/${userId}`,
+      `http://127.0.0.1:${port}/api/users/id/${userId}`,
       { headers: { Authorization: `Bearer ${token}` } },
     );
     assert.equal(response.status, 200);
@@ -357,7 +681,7 @@ test('GET /resources/api_user.php/id/:id returns 200 with own profile', async (t
   });
 });
 
-test('GET /resources/api_user.php/id/:id returns 404 when user not found', async (t) => {
+test('GET /api/users/id/:id returns 404 when user not found', async (t) => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
 
@@ -365,7 +689,7 @@ test('GET /resources/api_user.php/id/:id returns 404 when user not found', async
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php/id/${userId}`,
+      `http://127.0.0.1:${port}/api/users/id/${userId}`,
       { headers: { Authorization: `Bearer ${token}` } },
     );
     assert.equal(response.status, 404);
@@ -373,13 +697,13 @@ test('GET /resources/api_user.php/id/:id returns 404 when user not found', async
 });
 
 // ---------------------------------------------------------------------------
-// PUT /resources/api_user.php/id/:id – auth required (no database required)
+// PUT /api/users/id/:id – auth required (no database required)
 // ---------------------------------------------------------------------------
 
-test('PUT /resources/api_user.php/id/:id returns 401 without Authorization header', async () => {
+test('PUT /api/users/id/:id returns 401 without Authorization header', async () => {
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php/id/some-uuid`,
+      `http://127.0.0.1:${port}/api/users/id/some-uuid`,
       {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -390,10 +714,10 @@ test('PUT /resources/api_user.php/id/:id returns 401 without Authorization heade
   });
 });
 
-test('PUT /resources/api_user.php/id/:id returns 401 with invalid token', async () => {
+test('PUT /api/users/id/:id returns 401 with invalid token', async () => {
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php/id/some-uuid`,
+      `http://127.0.0.1:${port}/api/users/id/some-uuid`,
       {
         method: 'PUT',
         headers: {
@@ -408,16 +732,16 @@ test('PUT /resources/api_user.php/id/:id returns 401 with invalid token', async 
 });
 
 // ---------------------------------------------------------------------------
-// PUT /resources/api_user.php/id/:id – profile update (mocked db)
+// PUT /api/users/id/:id – profile update (mocked db)
 // ---------------------------------------------------------------------------
 
-test('PUT /resources/api_user.php/id/:id returns 400 for empty name', async () => {
+test('PUT /api/users/id/:id returns 400 for empty name', async () => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php/id/${userId}`,
+      `http://127.0.0.1:${port}/api/users/id/${userId}`,
       {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -428,13 +752,13 @@ test('PUT /resources/api_user.php/id/:id returns 400 for empty name', async () =
   });
 });
 
-test('PUT /resources/api_user.php/id/:id returns 400 when no fields provided', async () => {
+test('PUT /api/users/id/:id returns 400 when no fields provided', async () => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php/id/${userId}`,
+      `http://127.0.0.1:${port}/api/users/id/${userId}`,
       {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -445,7 +769,7 @@ test('PUT /resources/api_user.php/id/:id returns 400 when no fields provided', a
   });
 });
 
-test('PUT /resources/api_user.php/id/:id updates name successfully', async (t) => {
+test('PUT /api/users/id/:id updates name successfully', async (t) => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
 
@@ -453,7 +777,7 @@ test('PUT /resources/api_user.php/id/:id updates name successfully', async (t) =
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php/id/${userId}`,
+      `http://127.0.0.1:${port}/api/users/id/${userId}`,
       {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -467,7 +791,7 @@ test('PUT /resources/api_user.php/id/:id updates name successfully', async (t) =
   });
 });
 
-test('PUT /resources/api_user.php/id/:id returns 404 when user not found', async (t) => {
+test('PUT /api/users/id/:id returns 404 when user not found', async (t) => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
 
@@ -475,7 +799,7 @@ test('PUT /resources/api_user.php/id/:id returns 404 when user not found', async
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php/id/${userId}`,
+      `http://127.0.0.1:${port}/api/users/id/${userId}`,
       {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -486,7 +810,7 @@ test('PUT /resources/api_user.php/id/:id returns 404 when user not found', async
   });
 });
 
-test('PUT /resources/api_user.php/id/:id returns 409 when new email already in use', async (t) => {
+test('PUT /api/users/id/:id returns 409 when new email already in use', async (t) => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
 
@@ -494,7 +818,7 @@ test('PUT /resources/api_user.php/id/:id returns 409 when new email already in u
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php/id/${userId}`,
+      `http://127.0.0.1:${port}/api/users/id/${userId}`,
       {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -505,13 +829,13 @@ test('PUT /resources/api_user.php/id/:id returns 409 when new email already in u
   });
 });
 
-test('PUT /resources/api_user.php/id/:id returns 400 for short password', async () => {
+test('PUT /api/users/id/:id returns 400 for short password', async () => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php/id/${userId}`,
+      `http://127.0.0.1:${port}/api/users/id/${userId}`,
       {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -522,7 +846,7 @@ test('PUT /resources/api_user.php/id/:id returns 400 for short password', async 
   });
 });
 
-test('PUT /resources/api_user.php/id/:id updates password successfully', async (t) => {
+test('PUT /api/users/id/:id updates password successfully', async (t) => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
 
@@ -530,7 +854,7 @@ test('PUT /resources/api_user.php/id/:id updates password successfully', async (
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_user.php/id/${userId}`,
+      `http://127.0.0.1:${port}/api/users/id/${userId}`,
       {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -544,10 +868,10 @@ test('PUT /resources/api_user.php/id/:id updates password successfully', async (
 });
 
 // ---------------------------------------------------------------------------
-// /resources/api_cart.php – authenticated cart operations (mocked db)
+// /api/cart – authenticated cart operations (mocked db)
 // ---------------------------------------------------------------------------
 
-test('GET /resources/api_cart.php returns only the authenticated user cart', async (t) => {
+test('GET /api/cart returns only the authenticated user cart', async (t) => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
   const calls = [];
@@ -570,7 +894,7 @@ test('GET /resources/api_cart.php returns only the authenticated user cart', asy
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_cart.php?user_id=other-user`,
+      `http://127.0.0.1:${port}/api/cart?user_id=other-user`,
       { headers: { Authorization: `Bearer ${token}` } },
     );
     assert.equal(response.status, 200);
@@ -582,24 +906,27 @@ test('GET /resources/api_cart.php returns only the authenticated user cart', asy
   });
 
   assert.equal(calls.length, 1);
-  assert.match(calls[0].sql, /FROM cart_items WHERE user_id = \$1/);
+  assert.match(calls[0].sql, /FROM cart_items/);
+  assert.match(calls[0].sql, /GROUP BY user_id, book_id/);
+  assert.match(calls[0].sql, /SUM\(quantity\)/);
   assert.deepEqual(calls[0].params, [userId]);
 });
 
-test('GET /resources/api_cart.php returns 401 without Authorization header', async () => {
+test('GET /api/cart returns 401 without Authorization header', async () => {
   await withServer(async (port) => {
-    const response = await fetch(`http://127.0.0.1:${port}/resources/api_cart.php`);
+    const response = await fetch(`http://127.0.0.1:${port}/api/cart`);
     assert.equal(response.status, 401);
   });
 });
 
-test('POST /resources/api_cart.php adds a cart item with server-derived catalog data', async (t) => {
+test('POST /api/cart adds a cart item with server-derived catalog data', async (t) => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
-  const calls = [];
+  const catalogCalls = [];
+  const writeCalls = [];
 
   t.mock.method(db, 'query', async (sql, params) => {
-    calls.push({ sql, params });
+    catalogCalls.push({ sql, params });
     if (/SELECT[\s\S]*FROM books/i.test(sql)) {
       return {
         rows: [{
@@ -611,22 +938,42 @@ test('POST /resources/api_cart.php adds a cart item with server-derived catalog 
         }],
       };
     }
-    return {
-      rows: [{
-        id: 'cart-1',
-        user_id: params[0],
-        book_id: params[1],
-        book_title: params[2],
-        volume: params[3],
-        cover: params[4],
-        price: String(params[5]),
-        quantity: params[6],
-      }],
-    };
+    throw new Error(`Unexpected SQL: ${sql}`);
   });
 
+  t.mock.method(db, 'connect', async () => ({
+    query: async (sql, params) => {
+      writeCalls.push({ sql, params });
+      if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') {
+        return { rows: [], rowCount: null };
+      }
+      if (/SELECT pg_advisory_xact_lock/i.test(sql)) {
+        return { rows: [{ pg_advisory_xact_lock: null }] };
+      }
+      if (/SELECT id, quantity[\s\S]*FOR UPDATE/i.test(sql)) {
+        return { rows: [] };
+      }
+      if (/INSERT INTO cart_items/i.test(sql)) {
+        return {
+          rows: [{
+            id: 'cart-1',
+            user_id: params[0],
+            book_id: params[1],
+            book_title: params[2],
+            volume: params[3],
+            cover: params[4],
+            price: String(params[5]),
+            quantity: params[6],
+          }],
+        };
+      }
+      throw new Error(`Unexpected client SQL: ${sql}`);
+    },
+    release: () => {},
+  }));
+
   await withServer(async (port) => {
-    const response = await fetch(`http://127.0.0.1:${port}/resources/api_cart.php`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/cart`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -653,17 +1000,268 @@ test('POST /resources/api_cart.php adds a cart item with server-derived catalog 
     assert.equal(payload.quantity, 2);
   });
 
-  assert.equal(calls.length, 2);
-  assert.match(calls[0].sql, /SELECT[\s\S]*FROM books/i);
-  assert.match(calls[1].sql, /INSERT INTO cart_items/);
-  assert.equal(calls[1].params[0], userId);
-  assert.equal(calls[1].params[1], 'OP001');
-  assert.equal(calls[1].params[2], 'One Piece');
-  assert.equal(calls[1].params[4], 'images/one_piece_vol_1.jpg');
-  assert.equal(calls[1].params[5], 30);
+  assert.equal(catalogCalls.length, 1);
+  assert.match(catalogCalls[0].sql, /SELECT[\s\S]*FROM books/i);
+  assert.equal(writeCalls[0].sql, 'BEGIN');
+  assert.match(writeCalls[1].sql, /SELECT pg_advisory_xact_lock/i);
+  assert.match(writeCalls[2].sql, /SELECT id, quantity[\s\S]*FOR UPDATE/i);
+  assert.match(writeCalls[3].sql, /INSERT INTO cart_items/);
+  assert.doesNotMatch(writeCalls[3].sql, /ON CONFLICT/);
+  assert.equal(writeCalls[3].params[0], userId);
+  assert.equal(writeCalls[3].params[1], 'OP001');
+  assert.equal(writeCalls[3].params[2], 'One Piece');
+  assert.equal(writeCalls[3].params[4], 'images/one_piece_vol_1.jpg');
+  assert.equal(writeCalls[3].params[5], 30);
+  assert.equal(writeCalls[4].sql, 'COMMIT');
 });
 
-test('POST /resources/api_cart.php returns 404 when the catalog item does not exist', async (t) => {
+test('POST /api/cart returns 404 when catalog book_id is null', async (t) => {
+  const userId = 'user-uuid-1';
+  const token = makeToken(userId);
+
+  t.mock.method(db, 'query', async (sql) => {
+    if (/SELECT[\s\S]*FROM books/i.test(sql)) {
+      return {
+        rows: [{
+          book_id: null,
+          title: 'Classroom of the Elite',
+          volume: 'Vol 1',
+          cover: 'images/cote_vol_1.jpg',
+          price: 14,
+        }],
+      };
+    }
+    throw new Error(`Unexpected SQL: ${sql}`);
+  });
+
+  t.mock.method(db, 'connect', async () => ({
+    query: async () => { throw new Error('Should not reach transaction'); },
+    release: () => {},
+  }));
+
+  await withServer(async (port) => {
+    const response = await fetch(`http://127.0.0.1:${port}/api/cart`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        book_title: 'Classroom of the Elite',
+        volume: '1',
+        quantity: 1,
+      }),
+    });
+
+    assert.equal(response.status, 404);
+    const payload = await response.json();
+    assert.equal(payload.error, 'Book not found');
+  });
+});
+
+test('POST /api/cart succeeds when catalog book cover is null', async (t) => {
+  const userId = 'user-uuid-1';
+  const token = makeToken(userId);
+
+  t.mock.method(db, 'query', async (sql) => {
+    if (/SELECT[\s\S]*FROM books/i.test(sql)) {
+      return {
+        rows: [{
+          book_id: 'COTE001',
+          title: 'Classroom of the Elite',
+          volume: 'Vol 1',
+          cover: null,
+          price: 14,
+        }],
+      };
+    }
+    throw new Error(`Unexpected SQL: ${sql}`);
+  });
+
+  t.mock.method(db, 'connect', async () => ({
+    query: async (sql, params) => {
+      if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') {
+        return { rows: [], rowCount: null };
+      }
+      if (/SELECT pg_advisory_xact_lock/i.test(sql)) {
+        return { rows: [{ pg_advisory_xact_lock: null }] };
+      }
+      if (/SELECT id, quantity[\s\S]*FOR UPDATE/i.test(sql)) {
+        return { rows: [] };
+      }
+      if (/INSERT INTO cart_items/i.test(sql)) {
+        return {
+          rows: [{
+            id: 'cart-null-cover',
+            user_id: params[0],
+            book_id: params[1],
+            book_title: params[2],
+            volume: params[3],
+            cover: params[4],
+            price: String(params[5]),
+            quantity: params[6],
+          }],
+        };
+      }
+      throw new Error(`Unexpected client SQL: ${sql}`);
+    },
+    release: () => {},
+  }));
+
+  await withServer(async (port) => {
+    const response = await fetch(`http://127.0.0.1:${port}/api/cart`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        book_title: 'Classroom of the Elite',
+        volume: '1',
+        quantity: 1,
+      }),
+    });
+
+    assert.equal(response.status, 201);
+
+    const payload = await response.json();
+    assert.equal(payload.book_title, 'Classroom of the Elite');
+    assert.equal(payload.cover, '');
+  });
+});
+
+test('POST /api/cart serializes concurrent writes for the same cart key', async (t) => {
+  const userId = 'user-uuid-1';
+  const token = makeToken(userId);
+  const rowState = [];
+  let lockHeld = false;
+  let lockReleased = Promise.resolve();
+  let nextId = 1;
+
+  t.mock.method(db, 'query', async (sql) => {
+    if (/SELECT[\s\S]*FROM books/i.test(sql)) {
+      return {
+        rows: [{
+          book_id: 'OP001',
+          title: 'One Piece',
+          volume: 'Vol 1',
+          cover: 'images/one_piece_vol_1.jpg',
+          price: 30,
+        }],
+      };
+    }
+    throw new Error(`Unexpected SQL: ${sql}`);
+  });
+
+  t.mock.method(db, 'connect', async () => {
+    let releaseLock = null;
+    return {
+      query: async (sql, params) => {
+        if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') {
+          if ((sql === 'COMMIT' || sql === 'ROLLBACK') && releaseLock) {
+            releaseLock();
+            releaseLock = null;
+          }
+          return { rows: [], rowCount: null };
+        }
+
+        if (/SELECT pg_advisory_xact_lock/i.test(sql)) {
+          while (lockHeld) {
+            await lockReleased;
+          }
+          lockHeld = true;
+          lockReleased = new Promise((resolve) => {
+            releaseLock = () => {
+              lockHeld = false;
+              resolve();
+            };
+          });
+          return { rows: [{ pg_advisory_xact_lock: null }] };
+        }
+
+        if (/SELECT id, quantity[\s\S]*FOR UPDATE/i.test(sql)) {
+          return {
+            rows: rowState
+              .filter((row) => row.user_id === params[0] && row.book_id === params[1])
+              .sort((a, b) => b.created_at - a.created_at || b.id.localeCompare(a.id))
+              .map((row) => ({ id: row.id, quantity: row.quantity })),
+          };
+        }
+
+        if (/INSERT INTO cart_items/i.test(sql)) {
+          const row = {
+            id: `cart-${nextId++}`,
+            user_id: params[0],
+            book_id: params[1],
+            book_title: params[2],
+            volume: params[3],
+            cover: params[4],
+            price: String(params[5]),
+            quantity: params[6],
+            created_at: new Date(`2026-01-01T00:00:0${nextId}Z`),
+          };
+          rowState.push(row);
+          return { rows: [row] };
+        }
+
+        if (/UPDATE cart_items/i.test(sql)) {
+          const row = rowState.find((item) => item.id === params[1]);
+          row.quantity = params[0];
+          return { rows: [row] };
+        }
+
+        if (/DELETE FROM cart_items/i.test(sql)) {
+          return { rows: [], rowCount: 0 };
+        }
+
+        throw new Error(`Unexpected client SQL: ${sql}`);
+      },
+      release: () => {
+        if (releaseLock) {
+          releaseLock();
+          releaseLock = null;
+        }
+      },
+    };
+  });
+
+  await withServer(async (port) => {
+    const [first, second] = await Promise.all([
+      fetch(`http://127.0.0.1:${port}/api/cart`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          book_title: 'One Piece',
+          volume: '1',
+          quantity: 2,
+        }),
+      }),
+      fetch(`http://127.0.0.1:${port}/api/cart`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          book_title: 'One Piece',
+          volume: '1',
+          quantity: 3,
+        }),
+      }),
+    ]);
+
+    assert.equal(first.status, 201);
+    assert.equal(second.status, 201);
+  });
+
+  assert.equal(rowState.length, 1);
+  assert.equal(rowState[0].quantity, 5);
+});
+
+test('POST /api/cart returns 404 when the catalog item does not exist', async (t) => {
   const token = makeToken('user-uuid-1');
 
   t.mock.method(db, 'query', async () => {
@@ -671,7 +1269,7 @@ test('POST /resources/api_cart.php returns 404 when the catalog item does not ex
   });
 
   await withServer(async (port) => {
-    const response = await fetch(`http://127.0.0.1:${port}/resources/api_cart.php`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/cart`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -688,7 +1286,155 @@ test('POST /resources/api_cart.php returns 404 when the catalog item does not ex
   });
 });
 
-test('PUT /resources/api_cart.php/:id updates an owned cart item', async (t) => {
+test('POST /api/cart increments quantity for existing cart rows', async (t) => {
+  const token = makeToken('user-uuid-1');
+  const catalogCalls = [];
+  const writeCalls = [];
+
+  t.mock.method(db, 'query', async (sql, params) => {
+    catalogCalls.push({ sql, params });
+
+    if (/SELECT[\s\S]*FROM books/i.test(sql)) {
+      return {
+        rows: [{
+          book_id: 'OP001',
+          title: 'One Piece',
+          volume: 'Vol 1',
+          cover: 'images/one_piece_vol_1.jpg',
+          price: 30,
+        }],
+      };
+    }
+
+    throw new Error(`Unexpected SQL: ${sql}`);
+  });
+
+  t.mock.method(db, 'connect', async () => ({
+    query: async (sql, params) => {
+      writeCalls.push({ sql, params });
+      if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') {
+        return { rows: [], rowCount: null };
+      }
+      if (/SELECT pg_advisory_xact_lock/i.test(sql)) {
+        return { rows: [{ pg_advisory_xact_lock: null }] };
+      }
+      if (/SELECT id, quantity[\s\S]*FOR UPDATE/i.test(sql)) {
+        return {
+          rows: [
+            { id: 'cart-2', quantity: 3 },
+            { id: 'cart-1', quantity: 2 },
+          ],
+        };
+      }
+      if (/UPDATE cart_items/i.test(sql)) {
+        return {
+          rows: [{
+            id: 'cart-2',
+            user_id: 'user-uuid-1',
+            book_id: 'OP001',
+            book_title: 'One Piece',
+            volume: '1',
+            cover: 'images/one_piece_vol_1.jpg',
+            price: '30',
+            quantity: params[0],
+          }],
+        };
+      }
+      if (/DELETE FROM cart_items/i.test(sql)) {
+        return { rowCount: 1, rows: [] };
+      }
+      throw new Error(`Unexpected client SQL: ${sql}`);
+    },
+    release: () => {},
+  }));
+
+  await withServer(async (port) => {
+    const response = await fetch(`http://127.0.0.1:${port}/api/cart`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        book_title: 'One Piece',
+        volume: '1',
+        quantity: 2,
+      }),
+    });
+
+    assert.equal(response.status, 201);
+    const payload = await response.json();
+    assert.equal(payload.quantity, 7);
+  });
+
+  assert.equal(catalogCalls.length, 1);
+  assert.equal(writeCalls[0].sql, 'BEGIN');
+  assert.match(writeCalls[2].sql, /SELECT id, quantity[\s\S]*FOR UPDATE/i);
+  assert.match(writeCalls[3].sql, /UPDATE cart_items/);
+  assert.equal(writeCalls[3].params[0], 7);
+  assert.match(writeCalls[4].sql, /DELETE FROM cart_items/);
+  assert.deepEqual(writeCalls[4].params, [['cart-1']]);
+  assert.equal(writeCalls[5].sql, 'COMMIT');
+});
+
+test('POST /api/cart returns 500 when cart write fails', async (t) => {
+  const token = makeToken('user-uuid-1');
+  const calls = [];
+
+  t.mock.method(db, 'query', async (sql, params) => {
+    calls.push({ sql, params });
+
+    if (/SELECT[\s\S]*FROM books/i.test(sql)) {
+      return {
+        rows: [{
+          book_id: 'OP001',
+          title: 'One Piece',
+          volume: 'Vol 1',
+          cover: 'images/one_piece_vol_1.jpg',
+          price: 30,
+        }],
+      };
+    }
+
+    throw new Error(`Unexpected SQL: ${sql}`);
+  });
+
+  t.mock.method(db, 'connect', async () => ({
+    query: async (sql, params) => {
+      calls.push({ sql, params });
+      if (sql === 'BEGIN' || sql === 'ROLLBACK') {
+        return { rows: [], rowCount: null };
+      }
+      if (/SELECT pg_advisory_xact_lock/i.test(sql)) {
+        throw new Error('cart write failed');
+      }
+      throw new Error(`Unexpected client SQL: ${sql}`);
+    },
+    release: () => {},
+  }));
+
+  await withServer(async (port) => {
+    const response = await fetch(`http://127.0.0.1:${port}/api/cart`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        book_title: 'One Piece',
+        volume: '1',
+        quantity: 1,
+      }),
+    });
+
+    assert.equal(response.status, 500);
+  });
+
+  assert.ok(calls.some((call) => call.sql === 'BEGIN'));
+  assert.ok(calls.some((call) => call.sql === 'ROLLBACK'));
+});
+
+test('PUT /api/cart/:id updates an owned cart item', async (t) => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
 
@@ -706,7 +1452,7 @@ test('PUT /resources/api_cart.php/:id updates an owned cart item', async (t) => 
   }));
 
   await withServer(async (port) => {
-    const response = await fetch(`http://127.0.0.1:${port}/resources/api_cart.php/cart-1`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/cart/cart-1`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -722,13 +1468,13 @@ test('PUT /resources/api_cart.php/:id updates an owned cart item', async (t) => 
   });
 });
 
-test('PUT /resources/api_cart.php/:id returns 404 for another user cart item', async (t) => {
+test('PUT /api/cart/:id returns 404 for another user cart item', async (t) => {
   const token = makeToken('user-uuid-1');
 
   t.mock.method(db, 'query', async () => ({ rows: [], rowCount: 0 }));
 
   await withServer(async (port) => {
-    const response = await fetch(`http://127.0.0.1:${port}/resources/api_cart.php/cart-1`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/cart/cart-1`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -741,13 +1487,13 @@ test('PUT /resources/api_cart.php/:id returns 404 for another user cart item', a
   });
 });
 
-test('DELETE /resources/api_cart.php/:id deletes an owned cart item', async (t) => {
+test('DELETE /api/cart/:id deletes an owned cart item', async (t) => {
   const token = makeToken('user-uuid-1');
 
   t.mock.method(db, 'query', async () => ({ rowCount: 1 }));
 
   await withServer(async (port) => {
-    const response = await fetch(`http://127.0.0.1:${port}/resources/api_cart.php/cart-1`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/cart/cart-1`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -760,13 +1506,13 @@ test('DELETE /resources/api_cart.php/:id deletes an owned cart item', async (t) 
   });
 });
 
-test('DELETE /resources/api_cart.php/:id returns 404 for another user cart item', async (t) => {
+test('DELETE /api/cart/:id returns 404 for another user cart item', async (t) => {
   const token = makeToken('user-uuid-1');
 
   t.mock.method(db, 'query', async () => ({ rowCount: 0 }));
 
   await withServer(async (port) => {
-    const response = await fetch(`http://127.0.0.1:${port}/resources/api_cart.php/cart-1`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/cart/cart-1`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -776,12 +1522,12 @@ test('DELETE /resources/api_cart.php/:id returns 404 for another user cart item'
 });
 
 // ---------------------------------------------------------------------------
-// /resources/api_orders.php – authenticated checkout from owned cart items
+// /api/orders – authenticated checkout from owned cart items
 // ---------------------------------------------------------------------------
 
-test('POST /resources/api_orders.php returns 401 without Authorization header', async () => {
+test('POST /api/orders returns 401 without Authorization header', async () => {
   await withServer(async (port) => {
-    const response = await fetch(`http://127.0.0.1:${port}/resources/api_orders.php`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/orders`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ cart_item_ids: ['11111111-1111-4111-8111-111111111111'] }),
@@ -791,7 +1537,7 @@ test('POST /resources/api_orders.php returns 401 without Authorization header', 
   });
 });
 
-test('POST /resources/api_orders.php creates an order from owned cart items only', async (t) => {
+test('POST /api/orders creates an order from owned cart items only', async (t) => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
   const cartItemId = '11111111-1111-4111-8111-111111111111';
@@ -838,7 +1584,7 @@ test('POST /resources/api_orders.php creates an order from owned cart items only
   });
 
   await withServer(async (port) => {
-    const response = await fetch(`http://127.0.0.1:${port}/resources/api_orders.php`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/orders`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -862,9 +1608,13 @@ test('POST /resources/api_orders.php creates an order from owned cart items only
   assert.deepEqual(calls[1].params[1], [cartItemId]);
   assert.equal(calls[2].params[0], userId);
   assert.equal(calls[2].params[1], 60);
+  const orderItemsInsertCall = calls.find((call) => call.sql.includes('INSERT INTO order_items'));
+  assert.ok(orderItemsInsertCall);
+  assert.match(orderItemsInsertCall.sql, /INSERT INTO order_items \(order_id, book_id, title, cover, unit_price, quantity, line_total\)/);
+  assert.equal(orderItemsInsertCall.params[3], 'images/one_piece_vol_1.jpg');
 });
 
-test('POST /resources/api_orders.php returns 404 when any cart item is not owned by the user', async (t) => {
+test('POST /api/orders returns 404 when any cart item is not owned by the user', async (t) => {
   const token = makeToken('user-uuid-1');
   const cartItemId = '11111111-1111-4111-8111-111111111111';
   const calls = [];
@@ -884,7 +1634,7 @@ test('POST /resources/api_orders.php returns 404 when any cart item is not owned
   });
 
   await withServer(async (port) => {
-    const response = await fetch(`http://127.0.0.1:${port}/resources/api_orders.php`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/orders`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -900,7 +1650,7 @@ test('POST /resources/api_orders.php returns 404 when any cart item is not owned
   assert.equal(calls[2].sql, 'ROLLBACK');
 });
 
-test('POST /resources/api_orders.php rolls back and returns 500 when inserting order items fails', async (t) => {
+test('POST /api/orders rolls back and returns 500 when inserting order items fails', async (t) => {
   const token = makeToken('user-uuid-1');
   const cartItemId = '11111111-1111-4111-8111-111111111111';
   const calls = [];
@@ -918,6 +1668,7 @@ test('POST /resources/api_orders.php rolls back and returns 500 when inserting o
           id: cartItemId,
           book_id: 'One Piece::1',
           title: 'One Piece',
+          cover: 'images/one_piece_vol_1.jpg',
           unit_price: '30.00',
           quantity: 1,
         }],
@@ -940,7 +1691,7 @@ test('POST /resources/api_orders.php rolls back and returns 500 when inserting o
   });
 
   await withServer(async (port) => {
-    const response = await fetch(`http://127.0.0.1:${port}/resources/api_orders.php`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/orders`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -958,7 +1709,7 @@ test('POST /resources/api_orders.php rolls back and returns 500 when inserting o
   assert.equal(calls.some((call) => call.sql.includes('DELETE FROM cart_items')), false);
 });
 
-test('GET /resources/api_orders.php returns authenticated user purchase history ordered by purchase date', async (t) => {
+test('GET /api/orders returns authenticated user purchase history ordered by purchase date', async (t) => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
   const calls = [];
@@ -996,6 +1747,7 @@ test('GET /resources/api_orders.php returns authenticated user purchase history 
             order_id: '33333333-3333-4333-8333-333333333333',
             book_id: 'One Piece::2',
             title: 'One Piece',
+            cover: 'images/one_piece_vol_2.jpg',
             unit_price: '30.00',
             quantity: 2,
             line_total: '60.00',
@@ -1005,6 +1757,7 @@ test('GET /resources/api_orders.php returns authenticated user purchase history 
             order_id: '22222222-2222-4222-8222-222222222222',
             book_id: 'One Piece::1',
             title: 'One Piece',
+            cover: 'images/one_piece_vol_1.jpg',
             unit_price: '30.00',
             quantity: 1,
             line_total: '30.00',
@@ -1018,7 +1771,7 @@ test('GET /resources/api_orders.php returns authenticated user purchase history 
   });
 
   await withServer(async (port) => {
-    const response = await fetch(`http://127.0.0.1:${port}/resources/api_orders.php?user_id=someone-else`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/orders?user_id=someone-else`, {
       headers: { Authorization: `Bearer ${token}` },
     });
 
@@ -1031,23 +1784,27 @@ test('GET /resources/api_orders.php returns authenticated user purchase history 
     assert.equal(payload.data[0].items.length, 1);
     assert.equal(payload.data[0].items[0].book_title, 'One Piece');
     assert.equal(payload.data[0].items[0].volume, '2');
+    assert.equal(payload.data[0].items[0].cover, 'images/one_piece_vol_2.jpg');
     assert.equal(payload.data[0].items[0].price, '30.00');
     assert.equal(payload.data[1].id, '22222222-2222-4222-8222-222222222222');
     assert.equal(payload.data[1].items.length, 1);
+    assert.equal(payload.data[1].items[0].cover, 'images/one_piece_vol_1.jpg');
   });
 
   assert.deepEqual(calls[0].params, [userId]);
   assert.equal(calls[0].sql.includes('WHERE user_id = $1'), true);
   assert.ok(calls[0].sql.includes('ORDER BY created_at DESC'));
+  assert.ok(calls[1].sql.includes('COALESCE(NULLIF(oi.cover, \'\'), b.cover, \'\') AS cover'));
+  assert.ok(calls[1].sql.includes('LEFT JOIN books AS b ON b.book_id = oi.book_id'));
 });
 
 // ---------------------------------------------------------------------------
-// /resources/api_order_items.php – authenticated order item operations
+// /api/order-items – authenticated order item operations
 // ---------------------------------------------------------------------------
 
-test('PUT /resources/api_order_items.php returns 401 without Authorization header', async () => {
+test('PUT /api/order-items returns 401 without Authorization header', async () => {
   await withServer(async (port) => {
-    const response = await fetch(`http://127.0.0.1:${port}/resources/api_order_items.php?id=item-1`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/order-items?id=item-1`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ quantity: 2 }),
@@ -1057,7 +1814,7 @@ test('PUT /resources/api_order_items.php returns 401 without Authorization heade
   });
 });
 
-test('PUT /resources/api_order_items.php updates an owned order item quantity', async (t) => {
+test('PUT /api/order-items updates an owned order item quantity', async (t) => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
   const calls = [];
@@ -1097,7 +1854,7 @@ test('PUT /resources/api_order_items.php updates an owned order item quantity', 
   t.mock.method(db, 'connect', async () => client);
 
   await withServer(async (port) => {
-    const response = await fetch(`http://127.0.0.1:${port}/resources/api_order_items.php?id=item-1`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/order-items?id=item-1`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -1125,7 +1882,7 @@ test('PUT /resources/api_order_items.php updates an owned order item quantity', 
   assert.equal(released, true);
 });
 
-test('PUT /resources/api_order_items.php returns 404 for another user item', async (t) => {
+test('PUT /api/order-items returns 404 for another user item', async (t) => {
   const token = makeToken('user-uuid-1');
   const calls = [];
   let released = false;
@@ -1148,7 +1905,7 @@ test('PUT /resources/api_order_items.php returns 404 for another user item', asy
   t.mock.method(db, 'connect', async () => client);
 
   await withServer(async (port) => {
-    const response = await fetch(`http://127.0.0.1:${port}/resources/api_order_items.php?id=item-1`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/order-items?id=item-1`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -1166,7 +1923,7 @@ test('PUT /resources/api_order_items.php returns 404 for another user item', asy
   assert.equal(released, true);
 });
 
-test('PUT /resources/api_order_items.php returns 404 when order total update affects no rows', async (t) => {
+test('PUT /api/order-items returns 404 when order total update affects no rows', async (t) => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
   const calls = [];
@@ -1202,7 +1959,7 @@ test('PUT /resources/api_order_items.php returns 404 when order total update aff
   t.mock.method(db, 'connect', async () => client);
 
   await withServer(async (port) => {
-    const response = await fetch(`http://127.0.0.1:${port}/resources/api_order_items.php?id=item-1`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/order-items?id=item-1`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -1218,10 +1975,10 @@ test('PUT /resources/api_order_items.php returns 404 when order total update aff
   assert.equal(released, true);
 });
 
-test('DELETE /resources/api_order_items.php returns 401 without Authorization header', async () => {
+test('DELETE /api/order-items returns 401 without Authorization header', async () => {
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_order_items.php?id=item-1&order_id=order-1`,
+      `http://127.0.0.1:${port}/api/order-items?id=item-1&order_id=order-1`,
       { method: 'DELETE' },
     );
 
@@ -1229,7 +1986,7 @@ test('DELETE /resources/api_order_items.php returns 401 without Authorization he
   });
 });
 
-test('DELETE /resources/api_order_items.php returns 404 for another user item', async (t) => {
+test('DELETE /api/order-items returns 404 for another user item', async (t) => {
   const token = makeToken('user-uuid-1');
   const calls = [];
   let released = false;
@@ -1256,7 +2013,7 @@ test('DELETE /resources/api_order_items.php returns 404 for another user item', 
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_order_items.php?id=item-1&order_id=order-1`,
+      `http://127.0.0.1:${port}/api/order-items?id=item-1&order_id=order-1`,
       {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
@@ -1272,7 +2029,7 @@ test('DELETE /resources/api_order_items.php returns 404 for another user item', 
   assert.equal(released, true);
 });
 
-test('DELETE /resources/api_order_items.php deletes order when removed item was the last one', async (t) => {
+test('DELETE /api/order-items deletes order when removed item was the last one', async (t) => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
   const calls = [];
@@ -1308,7 +2065,7 @@ test('DELETE /resources/api_order_items.php deletes order when removed item was 
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_order_items.php?id=item-1&order_id=order-1`,
+      `http://127.0.0.1:${port}/api/order-items?id=item-1&order_id=order-1`,
       {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
@@ -1333,7 +2090,7 @@ test('DELETE /resources/api_order_items.php deletes order when removed item was 
   assert.equal(released, true);
 });
 
-test('DELETE /resources/api_order_items.php recalculates order total when items remain', async (t) => {
+test('DELETE /api/order-items recalculates order total when items remain', async (t) => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
   const calls = [];
@@ -1369,7 +2126,7 @@ test('DELETE /resources/api_order_items.php recalculates order total when items 
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_order_items.php?id=item-1&order_id=order-1`,
+      `http://127.0.0.1:${port}/api/order-items?id=item-1&order_id=order-1`,
       {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
@@ -1388,7 +2145,7 @@ test('DELETE /resources/api_order_items.php recalculates order total when items 
   assert.equal(released, true);
 });
 
-test('DELETE /resources/api_order_items.php returns 404 when non-empty order total update affects no rows', async (t) => {
+test('DELETE /api/order-items returns 404 when non-empty order total update affects no rows', async (t) => {
   const userId = 'user-uuid-1';
   const token = makeToken(userId);
   const calls = [];
@@ -1424,7 +2181,7 @@ test('DELETE /resources/api_order_items.php returns 404 when non-empty order tot
 
   await withServer(async (port) => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/resources/api_order_items.php?id=item-1&order_id=order-1`,
+      `http://127.0.0.1:${port}/api/order-items?id=item-1&order_id=order-1`,
       {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },

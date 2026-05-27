@@ -296,14 +296,15 @@ const Product = {
             this.currentPage = 1;
 
             try {
-            const apiUrl = window.__APP_CONFIG__.getApiUrl("resources/api_books.php");
+            const apiUrl = window.__APP_CONFIG__.getApiUrl("api/books");
             const response = await fetch(apiUrl);
             if (!response.ok) throw new Error("Failed to load data");
 
             const allData = await response.json();
+            if (!Array.isArray(allData)) throw new Error("Catalog response is not an array");
 
             this.results = allData.filter((book) => {
-                const queryLower = query.toLowerCase();
+                const queryLower = String(query ?? "").toLowerCase();
                 const matchesQuery =
                 book.title.toLowerCase().includes(queryLower) ||
                 book.author.toLowerCase().includes(queryLower) ||

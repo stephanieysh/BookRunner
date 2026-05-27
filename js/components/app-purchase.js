@@ -40,7 +40,7 @@ const Purchase = {
     },
 
     fetchPurchases() {
-      const ordersApiURL = window.__APP_CONFIG__.getApiUrl("resources/api_orders.php");
+      const ordersApiURL = window.__APP_CONFIG__.getApiUrl("api/orders");
       const token = this.authState.user?.token;
       if (this.authState.isLoggedIn && token) {
         fetch(ordersApiURL, {
@@ -72,7 +72,7 @@ const Purchase = {
 
     updatePurchaseQuantity(item) {
       const orderItemsApiURL = window.__APP_CONFIG__.getApiUrl(
-        `resources/api_order_items.php?id=${item.id}`
+        `api/order-items?id=${item.id}`
       );
       const token = this.authState.user?.token;
       if (!this.authState.isLoggedIn || !token) {
@@ -121,7 +121,7 @@ const Purchase = {
 
     removeFromPurchase(itemId, orderId) {
       const orderItemsApiURL = window.__APP_CONFIG__.getApiUrl(
-        `resources/api_order_items.php?id=${itemId}&order_id=${orderId}`
+        `api/order-items?id=${itemId}&order_id=${orderId}`
       );
       const token = this.authState.user?.token;
       if (!this.authState.isLoggedIn || !token) {
