@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS order_items (
     order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
     book_id VARCHAR(120) NOT NULL,
     title VARCHAR(255) NOT NULL,
+    cover TEXT NOT NULL DEFAULT '',
     unit_price NUMERIC(10, 2) NOT NULL CHECK (unit_price >= 0),
     quantity INTEGER NOT NULL CHECK (quantity > 0),
     line_total NUMERIC(10, 2) NOT NULL CHECK (line_total = unit_price * quantity)
