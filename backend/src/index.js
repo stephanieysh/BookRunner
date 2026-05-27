@@ -94,6 +94,16 @@ ALTER TABLE cart_items
 
 ALTER TABLE order_items
   ALTER COLUMN book_id TYPE VARCHAR(120) USING book_id::text;
+
+ALTER TABLE order_items
+  ADD COLUMN IF NOT EXISTS cover TEXT NOT NULL DEFAULT '';
+
+UPDATE order_items AS oi
+SET cover = b.cover
+FROM books AS b
+WHERE oi.book_id = b.book_id
+  AND oi.cover = ''
+  AND NULLIF(BTRIM(b.cover), '') IS NOT NULL;
 `;
 
 const resolvePort = (rawPort) => {

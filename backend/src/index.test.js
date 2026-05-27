@@ -133,6 +133,11 @@ test('startup migration adds missing books columns with IF NOT EXISTS', async (t
     calls[1],
     /ALTER TABLE order_items[\s\S]*ALTER COLUMN book_id TYPE VARCHAR\(120\) USING book_id::text/i,
   );
+  assert.match(calls[1], /ALTER TABLE order_items[\s\S]*ADD COLUMN IF NOT EXISTS cover TEXT NOT NULL DEFAULT ''/i);
+  assert.match(calls[1], /UPDATE order_items AS oi[\s\S]*SET cover = b\.cover/i);
+  assert.match(calls[1], /FROM books AS b[\s\S]*WHERE oi\.book_id = b\.book_id/i);
+  assert.match(calls[1], /oi\.cover = ''/i);
+  assert.match(calls[1], /NULLIF\(BTRIM\(b\.cover\), ''\) IS NOT NULL/i);
   assert.match(calls[1], /UPDATE books AS b SET\s+cover = v\.cover,/i);
   assert.match(calls[1], /FROM \(VALUES/i);
   assert.match(calls[1], /WHERE b\.title = v\.title\s+AND b\.volume = v\.volume/i);
@@ -1603,6 +1608,10 @@ test('POST /api/orders creates an order from owned cart items only', async (t) =
   assert.deepEqual(calls[1].params[1], [cartItemId]);
   assert.equal(calls[2].params[0], userId);
   assert.equal(calls[2].params[1], 60);
+  const orderItemsInsertCall = calls.find((call) => call.sql.includes('INSERT INTO order_items'));
+  assert.ok(orderItemsInsertCall);
+  assert.match(orderItemsInsertCall.sql, /INSERT INTO order_items \(order_id, book_id, title, cover, unit_price, quantity, line_total\)/);
+  assert.equal(orderItemsInsertCall.params[3], 'images/one_piece_vol_1.jpg');
 });
 
 test('POST /api/orders returns 404 when any cart item is not owned by the user', async (t) => {
@@ -1659,6 +1668,7 @@ test('POST /api/orders rolls back and returns 500 when inserting order items fai
           id: cartItemId,
           book_id: 'One Piece::1',
           title: 'One Piece',
+          cover: 'images/one_piece_vol_1.jpg',
           unit_price: '30.00',
           quantity: 1,
         }],
@@ -1737,6 +1747,7 @@ test('GET /api/orders returns authenticated user purchase history ordered by pur
             order_id: '33333333-3333-4333-8333-333333333333',
             book_id: 'One Piece::2',
             title: 'One Piece',
+            cover: 'images/one_piece_vol_2.jpg',
             unit_price: '30.00',
             quantity: 2,
             line_total: '60.00',
@@ -1746,6 +1757,7 @@ test('GET /api/orders returns authenticated user purchase history ordered by pur
             order_id: '22222222-2222-4222-8222-222222222222',
             book_id: 'One Piece::1',
             title: 'One Piece',
+            cover: 'images/one_piece_vol_1.jpg',
             unit_price: '30.00',
             quantity: 1,
             line_total: '30.00',
@@ -1772,14 +1784,18 @@ test('GET /api/orders returns authenticated user purchase history ordered by pur
     assert.equal(payload.data[0].items.length, 1);
     assert.equal(payload.data[0].items[0].book_title, 'One Piece');
     assert.equal(payload.data[0].items[0].volume, '2');
+    assert.equal(payload.data[0].items[0].cover, 'images/one_piece_vol_2.jpg');
     assert.equal(payload.data[0].items[0].price, '30.00');
     assert.equal(payload.data[1].id, '22222222-2222-4222-8222-222222222222');
     assert.equal(payload.data[1].items.length, 1);
+    assert.equal(payload.data[1].items[0].cover, 'images/one_piece_vol_1.jpg');
   });
 
   assert.deepEqual(calls[0].params, [userId]);
   assert.equal(calls[0].sql.includes('WHERE user_id = $1'), true);
   assert.ok(calls[0].sql.includes('ORDER BY created_at DESC'));
+  assert.ok(calls[1].sql.includes('COALESCE(NULLIF(oi.cover, \'\'), b.cover, \'\') AS cover'));
+  assert.ok(calls[1].sql.includes('LEFT JOIN books AS b ON b.book_id = oi.book_id'));
 });
 
 // ---------------------------------------------------------------------------
