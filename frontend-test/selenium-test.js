@@ -1,5 +1,6 @@
 const { Builder, By, until } = require('selenium-webdriver');
 const chrome = require('selenium-webdriver/chrome');
+const crypto = require('node:crypto');
 
 // Change this when moving from localhost to staging and production
 const BASE_URL = process.env.BASE_URL || 'http://localhost:8080';
@@ -52,7 +53,7 @@ async function waitClickable(driver, locator, timeout = DEFAULT_TIMEOUT) {
 
 // Login helper function
 function createUniqueCredentials(label = 'user') {
-  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const suffix = crypto.randomUUID();
   return {
     name: `Test ${label}`,
     email: `${label}-${suffix}@example.com`,
@@ -108,7 +109,6 @@ async function login(driver, credentials) {
     console.log('Current URL:', currentUrl);
     console.log('Page text:', pageText);
     console.log('TEST_EMAIL:', credentials.email);
-    console.log('Password length:', credentials.password.length);
 
     throw error;
   }
