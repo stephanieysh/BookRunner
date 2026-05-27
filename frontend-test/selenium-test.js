@@ -3,8 +3,8 @@ const chrome = require('selenium-webdriver/chrome');
 
 // Change this when moving from localhost to staging and production
 const BASE_URL = process.env.BASE_URL || 'http://localhost:8080';
-const TEST_EMAIL = 'test@gmail.com';
-const TEST_PASSWORD = 'tester123';
+const TEST_EMAIL = process.env.E2E_EMAIL || 'test@gmail.com';
+const TEST_PASSWORD = process.env.E2E_PASSWORD || 'tester123';
 const DEFAULT_TIMEOUT = 10000;
 
 jest.setTimeout(60000);
