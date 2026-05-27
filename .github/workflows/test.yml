@@ -52,8 +52,6 @@ jobs:
         run: docker compose up -d --build --wait
 
       - name: Check running containers
-        env:
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: docker compose ps
 
       - name: Set up Node.js for Selenium tests
