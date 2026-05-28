@@ -37,18 +37,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate required CI config
-        env:
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-        run: |
-          if [ -z "$JWT_SECRET" ]; then
-            echo "::error::JWT_SECRET secret must be configured to run Selenium E2E tests."
-            exit 1
-          fi
-
       - name: Start application with Docker Compose
         env:
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_SECRET: ci-test-secret
         run: docker compose up -d --build --wait
 
       - name: Check running containers
@@ -73,12 +64,8 @@ jobs:
 
       - name: Show Docker logs if tests fail
         if: failure()
-        env:
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: docker compose logs
 
       - name: Stop Docker Compose
         if: always()
-        env:
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: docker compose down

@@ -119,7 +119,7 @@ Triggered on every push and pull request to any branch (and manually via `workfl
 1. **Backend tests** – installs Node.js 20, runs `npm ci` and `npm test` inside `backend/`
 2. **Frontend Selenium E2E tests** – starts the Docker Compose stack with `docker compose up -d --build --wait`, then runs `npm test` inside `frontend-test/`
 
-The Selenium job requires the `JWT_SECRET` Actions secret so the backend container can boot during CI.
+The Selenium job uses a CI-only JWT secret so the backend container can boot during CI.
 
 ### CI (`ci.yml`)
 

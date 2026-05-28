@@ -158,9 +158,9 @@ if (rawTrustProxy !== undefined && rawTrustProxy !== '') {
   const numericTrustProxy = Number(rawTrustProxy);
   const trustProxy = Number.isNaN(numericTrustProxy) ? rawTrustProxy : numericTrustProxy;
   app.set('trust proxy', trustProxy);
+} else {
+  app.set('trust proxy', 1);
 }
-
-app.set('trust proxy', 1);
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;

@@ -48,6 +48,7 @@ async function waitVisible(driver, locator, timeout = DEFAULT_TIMEOUT) {
 
 async function waitClickable(driver, locator, timeout = DEFAULT_TIMEOUT) {
   const element = await waitVisible(driver, locator, timeout);
+  await driver.wait(until.elementIsVisible(element), timeout);
   return element;
 }
 
@@ -216,7 +217,7 @@ afterEach(async () => {
 test('homepage loading', async () => {
   await driver.get(BASE_URL);
 
-  await driver.wait(until.titleContains('BOOK'), 10000);
+  await driver.wait(until.titleContains('BOOK'), DEFAULT_TIMEOUT);
 
   const appRoot = await waitVisible(driver, By.css('#app'));
   expect(await appRoot.isDisplayed()).toBe(true);
@@ -474,6 +475,7 @@ test('user can reset password from profile page', async () => {
 
   expect(await successMessage.isDisplayed()).toBe(true);
 
+  await driver.executeScript('sessionStorage.clear();');
   await login(driver, updatedCredentials);
   expect(await driver.getCurrentUrl()).toContain('/product');
 }, 60000);

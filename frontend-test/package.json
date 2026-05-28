@@ -18,8 +18,5 @@
     "testMatch": [
       "**/selenium-test.js"
     ]
-  },
-  "dependencies": {
-    "bcrypt": "^6.0.0"
   }
 }
