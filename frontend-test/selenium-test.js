@@ -43,7 +43,6 @@ function createDriver() {
 // Helper function
 async function waitVisible(driver, locator, timeout = DEFAULT_TIMEOUT) {
   const element = await driver.wait(until.elementLocated(locator), timeout);
-  await driver.wait(until.elementIsVisible(element), timeout);
   return element;
 }
 
