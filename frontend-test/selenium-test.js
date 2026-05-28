@@ -43,6 +43,7 @@ function createDriver() {
 // Helper function
 async function waitVisible(driver, locator, timeout = DEFAULT_TIMEOUT) {
   const element = await driver.wait(until.elementLocated(locator), timeout);
+  await driver.wait(until.elementIsVisible(element), timeout);
   return element;
 }
 
@@ -273,7 +274,7 @@ test('user can register a new account', async () => {
   // 7. Tick terms and conditions checkbox
   const termsCheckbox = await waitClickable(
     driver,
-    By.css('input[type="checkbox"]')
+    By.xpath("//*[contains(., 'I agree to the Terms and Conditions')]")
   );
 
   await driver.executeScript("arguments[0].click();", termsCheckbox);
