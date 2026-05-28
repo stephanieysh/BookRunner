@@ -110,17 +110,23 @@ Expected results:
 
 ## GitHub Actions CI/CD
 
-Two workflow files drive the automation pipeline:
+Three workflow files drive the automation pipeline:
+
+### Tests (`test.yml`)
+
+Triggered on every push and pull request to any branch (and manually via `workflow_dispatch`):
+
+1. **Backend tests** – installs Node.js 20, runs `npm ci` and `npm test` inside `backend/`
+2. **Frontend Selenium E2E tests** – starts the Docker Compose stack with `docker compose up -d --build --wait`, then runs `npm test` inside `frontend-test/`
+
+The Selenium job uses a CI-only JWT secret so the backend container can boot during CI.
 
 ### CI (`ci.yml`)
 
-Triggered on every push and pull request to any branch. The `test` job runs first; `build-backend` and `build-frontend` both depend on `test` and then run in parallel:
+Triggered on every push and pull request to any branch. This workflow only builds Docker images:
 
-1. **Backend tests** – installs Node.js 20, runs `npm ci` and `npm test` inside `backend/`
-2. **Build backend Docker image** – builds `docker/backend/Dockerfile` (no push)
-3. **Build frontend Docker image** – builds `docker/frontend/Dockerfile` (no push)
-
-> **Frontend/Selenium checks:** No Selenium test infrastructure exists in this repository yet. Frontend integration tests are deferred to issue #10 and will be added to CI once that work is complete.
+1. **Build backend Docker image** – builds `docker/backend/Dockerfile` (no push)
+2. **Build frontend Docker image** – builds `docker/frontend/Dockerfile` (no push)
 
 ### CD (`cd.yml`)
 

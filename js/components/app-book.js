@@ -29,7 +29,7 @@ const Book = {
           </div>
 
           <!-- Add to Cart -->
-          <button class="btn btn-theme-primary w-100 py-2" @click="addToCart()">
+          <button name="cart-btn" class="btn btn-theme-primary w-100 py-2" @click="addToCart()">
             <i class="mdi mdi-cart-plus"></i> Add to Cart
           </button>
           <p v-if="successMessage" class="alert alert-success mt-2 text-center">{{ successMessage }}</p>

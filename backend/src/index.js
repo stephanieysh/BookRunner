@@ -152,8 +152,27 @@ const resolveAllowedOrigins = (rawOrigins) => {
 const PORT = resolvePort(process.env.PORT);
 const HOST = process.env.HOST || '0.0.0.0';
 const allowedOrigins = resolveAllowedOrigins(process.env.FRONTEND_ORIGIN);
+const rawTrustProxy = process.env.TRUST_PROXY;
 
-app.set('trust proxy', 1);
+if (rawTrustProxy !== undefined && rawTrustProxy !== '') {
+  const numericTrustProxy = Number(rawTrustProxy);
+  let trustProxy;
+  if (Number.isNaN(numericTrustProxy)) {
+    const lower = rawTrustProxy.trim().toLowerCase();
+    if (lower === 'true') {
+      trustProxy = true;
+    } else if (lower === 'false' || lower === '0') {
+      trustProxy = false;
+    } else {
+      trustProxy = rawTrustProxy.trim();
+    }
+  } else {
+    trustProxy = numericTrustProxy;
+  }
+  app.set('trust proxy', trustProxy);
+} else {
+  app.set('trust proxy', 1);
+}
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
