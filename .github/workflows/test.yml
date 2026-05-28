@@ -43,7 +43,8 @@ jobs:
         run: docker compose up -d --build --wait
 
       - name: Check running containers
-        run: docker compose ps
+        if: always()
+        run: docker compose ps --all
 
       - name: Set up Node.js for Selenium tests
         uses: actions/setup-node@v4

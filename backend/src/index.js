@@ -156,7 +156,19 @@ const rawTrustProxy = process.env.TRUST_PROXY;
 
 if (rawTrustProxy !== undefined && rawTrustProxy !== '') {
   const numericTrustProxy = Number(rawTrustProxy);
-  const trustProxy = Number.isNaN(numericTrustProxy) ? rawTrustProxy : numericTrustProxy;
+  let trustProxy;
+  if (Number.isNaN(numericTrustProxy)) {
+    const lower = rawTrustProxy.trim().toLowerCase();
+    if (lower === 'true') {
+      trustProxy = true;
+    } else if (lower === 'false' || lower === '0') {
+      trustProxy = false;
+    } else {
+      trustProxy = rawTrustProxy.trim();
+    }
+  } else {
+    trustProxy = numericTrustProxy;
+  }
   app.set('trust proxy', trustProxy);
 } else {
   app.set('trust proxy', 1);
