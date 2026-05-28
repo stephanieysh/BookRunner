@@ -81,6 +81,10 @@ jobs:
           cache-from: type=gha,scope=backend
           cache-to: type=gha,scope=backend,mode=max
 
+      - name: Inject production frontend API URL
+        run: |
+          sed -i "s|cfg.API_BASE_URL = cfg.API_BASE_URL ?? \"\";|cfg.API_BASE_URL = \"${{ env.PRODUCTION_BACKEND_URL }}\";|g" js/config.js
+
       - name: Build and push frontend image
         uses: docker/build-push-action@v6
         with:
@@ -184,4 +188,4 @@ jobs:
           resourceGroup: ${{ secrets.ACA_RESOURCE_GROUP }}
           containerAppName: ${{ secrets.ACA_PRODUCTION_FRONTEND_APP }}
           imageToDeploy: ${{ env.FRONTEND_IMAGE }}:${{ needs.build-and-push.outputs.image-tag }}
-          environmentVariables: BACKEND_URL=${{ env.PRODUCTION_BACKEND_URL }}
+          environmentVariables: API_BASE_URL=${{ env.PRODUCTION_BACKEND_URL }}
