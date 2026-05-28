@@ -271,9 +271,9 @@ test('user can register a new account', async () => {
   await confirmPasswordInput.sendKeys(credentials.password);
 
   // 7. Tick terms and conditions checkbox
-  const termsCheckbox = await waitClickable(
+  const termsCheckbox = await waitVisible(
     driver,
-    By.xpath("//*[contains(., 'I agree to the Terms and Conditions')]")
+    By.css('input[type="checkbox"]')
   );
 
   await driver.executeScript("arguments[0].click();", termsCheckbox);
