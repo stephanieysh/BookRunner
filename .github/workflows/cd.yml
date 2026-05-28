@@ -134,6 +134,17 @@ jobs:
           pwd
           ls
           find . -name "config.js"
+          
+      - name: Debug repo files
+        run: |
+          pwd
+          ls
+          ls js
+          find . -name "config.js"
+      
+      - name: Find config.js
+        run: |
+          find . -name "config.js"
 
       - name: Inject staging frontend API URL
         run: |
