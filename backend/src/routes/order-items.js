@@ -41,7 +41,7 @@ router.put('/api/order-items', orderItemsLimiter, requireAuth, asyncHandler(asyn
 
     const result = await client.query(
       `UPDATE order_items AS oi
-       SET quantity = $1, line_total = oi.unit_price * $1
+       SET quantity = $1::int, line_total = oi.unit_price * $1::numeric
        FROM orders AS o
        WHERE oi.id = $2
          AND oi.order_id = o.id
