@@ -232,7 +232,7 @@ const Cart = {
       <div class="col-12 col-lg-10 col-xl-8">
 
         <!-- Title -->
-        <h2 class="text-center mb-4 fw-bold">
+        <h2 data-testid="cart-page-title" class="text-center mb-4 fw-bold">
           My Cart
           <span v-if="cart.length > 0" class="badge text-white ms-2"
                 style="background: linear-gradient(135deg, #0d6efd, #4facfe);">
@@ -253,7 +253,7 @@ const Cart = {
             <div class="d-flex justify-content-between align-items-center">
               <div class="d-flex align-items-center">
                 <div class="form-check me-3">
-                  <input class="form-check-input" type="checkbox" :checked="allItemsSelected" @change="toggleSelectAll()"
+                  <input data-testid="cart-select-all-checkbox" class="form-check-input" type="checkbox" :checked="allItemsSelected" @change="toggleSelectAll()"
                         id="selectAll" style="border: 2px solid #0d6efd;">
                   <label class="form-check-label fw-semibold" for="selectAll">Select All</label>
                 </div>
@@ -278,7 +278,7 @@ const Cart = {
             <!-- Empty Cart Message -->
             <div v-if="cart.length === 0" class="p-5 text-center">
               <i class="bi bi-cart-x display-1 text-muted mb-3"></i>
-              <p class="fs-4 text-muted mb-0">Your cart is empty</p>
+              <p data-testid="cart-empty-message" class="fs-4 text-muted mb-0">Your cart is empty</p>
               <p class="text-muted">Add some books to get started!</p>
             </div>
 
@@ -335,7 +335,7 @@ const Cart = {
             <!-- Empty Cart -->
             <div v-if="cart.length === 0" class="bg-white rounded shadow-sm p-4 text-center">
               <i class="bi bi-cart-x display-1 text-muted mb-3"></i>
-              <p class="fs-5 text-muted mb-0">Your cart is empty</p>
+              <p data-testid="cart-empty-message" class="fs-5 text-muted mb-0">Your cart is empty</p>
               <p class="text-muted">Add some books to get started!</p>
             </div>
 
@@ -405,7 +405,7 @@ const Cart = {
                   </div>
                 </div>
 
-                <button class="btn w-100 text-white fw-semibold py-2 py-md-3"
+                <button data-testid="cart-checkout-button" class="btn w-100 text-white fw-semibold py-2 py-md-3"
                         :disabled="!hasSelectedItems"
                         :class="{ 'opacity-50': !hasSelectedItems }"
                         @click="purchaseCart"

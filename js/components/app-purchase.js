@@ -157,7 +157,7 @@ const Purchase = {
   template: `
   <div class="container-fluid" style="background-color: #f8f9fa; min-height: 100vh;">
   <div class="container d-flex flex-column" >
-    <h2 class="my-4 text-center fw-bold">
+    <h2 data-testid="purchase-page-title" class="my-4 text-center fw-bold">
       Purchase History
       <span v-if="totalItems > 0" class="badge text-white ms-2"
             style="background: linear-gradient(135deg, #0d6efd, #4facfe);">
@@ -221,7 +221,7 @@ const Purchase = {
                     <img :src="item.cover" alt="cover" class="rounded shadow-sm" style="width: 60px; height: auto;" />
                   </td>
                   <td class="text-start text-wrap text-break">
-                    <span class="fw-semibold d-block w-100">{{ item.book_title }} Vol. {{ item.volume }}</span>
+                    <span data-testid="purchase-item-title" class="fw-semibold d-block w-100">{{ item.book_title }} Vol. {{ item.volume }}</span>
                   </td>
                   <td>
                     <div v-if="editingOrderId === order.id" class="input-group input-group-sm mx-auto" style="max-width: 120px;">

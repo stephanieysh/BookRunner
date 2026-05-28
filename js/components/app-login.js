@@ -62,6 +62,7 @@ const Login = {
               <div class="mb-2">
                 <v-text-field
                   name="email"
+                  data-testid="login-email-input"
                   v-model="email"
                   color="#0d6efd"
                   label="Email"
@@ -76,6 +77,7 @@ const Login = {
               <div class="mb-2">
                 <v-text-field
                   name="password"
+                  data-testid="login-password-input"
                   v-model="password"
                   color="#0d6efd"
                   label="Password"
@@ -101,6 +103,7 @@ const Login = {
               <div class="mb-2">
                 <v-btn
                   name="login-btn"
+                  data-testid="login-submit-button"
                   class="btn btn-theme-primary rounded-3"
                   block
                   size="large"

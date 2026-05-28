@@ -88,7 +88,7 @@ const Reset = {
               <h2 class="text-center mt-2">Password Reset</h2>
               <br/>
               <template v-if="submitted">
-                <div class="alert alert-success text-center">
+                <div data-testid="reset-password-success" class="alert alert-success text-center">
                   {{ msg }}
                 </div>
                 <div class="text-center mt-4">
@@ -104,6 +104,7 @@ const Reset = {
                 <div class="mb-2">
                   <v-text-field
                     name="password"
+                    data-testid="reset-password-input"
                     v-model="password"
                     :rules="passwordRules"
                     color="#0d6efd"
@@ -120,6 +121,7 @@ const Reset = {
                 <div class="mb-2">
                   <v-text-field
                     name="confirmPassword"
+                    data-testid="reset-confirm-password-input"
                     v-model="confirmPassword"
                     :rules="confirmPasswordRules"
                     color="#0d6efd"
@@ -137,7 +139,7 @@ const Reset = {
                   <p v-if="msg">{{ msg }}</p>
                 </div>
                 <div class="mb-3">
-                  <v-btn class="btn btn-theme-primary rounded-3" block size="large" variant="flat" @click="submitNewPassword">
+                  <v-btn data-testid="reset-password-submit-button" class="btn btn-theme-primary rounded-3" block size="large" variant="flat" @click="submitNewPassword">
                     Reset Password
                   </v-btn>
                 </div>

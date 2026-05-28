@@ -23,6 +23,7 @@ const Product = {
                     <label class="form-label">Search</label>
                     <div class="input-group">
                         <input
+                        data-testid="product-search-input"
                         v-model="searchQuery"
                         @input="fetchResults(searchQuery)"
                         class="form-control"
@@ -68,6 +69,7 @@ const Product = {
                         <label class="form-label d-none d-sm-block">Search</label>
                         <div class="mb-3 input-group d-none d-sm-flex">
                         <input
+                            data-testid="product-search-input"
                             v-model="searchQuery"
                             @input="fetchResults(searchQuery)"
                             class="form-control"
@@ -180,7 +182,7 @@ const Product = {
                     <div class="col-12 col-md-8 col-lg-9">
                     <div class="row row-cols-1 row-cols-md-2 row-cols-lg-4 g-4 mx-6 mx-sm-0">
                         <div class="col" v-for="manga in paginatedResults" :key="manga.title + '-Vol' + manga.volumeNumber">
-                        <router-link :to="getBookLink(manga)" class="text-decoration-none">
+                        <router-link :to="getBookLink(manga)" data-testid="product-card-link" class="text-decoration-none">
                             <div class="card h-100 d-flex flex-column">
                             <img
                                 :src="manga.cover"

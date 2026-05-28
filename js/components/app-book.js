@@ -29,10 +29,10 @@ const Book = {
           </div>
 
           <!-- Add to Cart -->
-          <button name="cart-btn" class="btn btn-theme-primary w-100 py-2" @click="addToCart()">
+          <button name="cart-btn" data-testid="book-add-to-cart-button" class="btn btn-theme-primary w-100 py-2" @click="addToCart()">
             <i class="mdi mdi-cart-plus"></i> Add to Cart
           </button>
-          <p v-if="successMessage" class="alert alert-success mt-2 text-center">{{ successMessage }}</p>
+          <p v-if="successMessage" data-testid="book-add-to-cart-success" class="alert alert-success mt-2 text-center">{{ successMessage }}</p>
         </div>
       </div>
 

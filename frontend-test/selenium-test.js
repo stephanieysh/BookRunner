@@ -8,6 +8,14 @@ const DEFAULT_TIMEOUT = 10000;
 const TEST_USER_API_URL = `${BASE_URL}/api/users`;
 
 jest.setTimeout(60000);
+
+function byTestId(id) {
+  return By.css(`[data-testid="${id}"]`);
+}
+
+function byTestIdInput(id) {
+  return By.css(`[data-testid="${id}"] input`);
+}
 // Custom browser driver
 function createDriver() {
   const options = new chrome.Options();
@@ -89,15 +97,15 @@ async function createAccountAndLogin(driver, label) {
 async function login(driver, credentials) {
   await driver.get(`${BASE_URL}/#/login`);
 
-  const emailInput = await waitVisible(driver, By.css('input[name="email"]'));
+  const emailInput = await waitVisible(driver, byTestIdInput('login-email-input'));
   await emailInput.clear();
   await emailInput.sendKeys(credentials.email);
 
-  const passwordInput = await waitVisible(driver, By.css('input[name="password"]'));
+  const passwordInput = await waitVisible(driver, byTestIdInput('login-password-input'));
   await passwordInput.clear();
   await passwordInput.sendKeys(credentials.password);
 
-  const loginButton = await waitClickable(driver, By.css('button[name="login-btn"]'));
+  const loginButton = await waitClickable(driver, byTestId('login-submit-button'));
   await loginButton.click();
 
   try {
@@ -119,7 +127,7 @@ async function login(driver, credentials) {
 async function searchProduct(driver, keyword) {
   const searchInput = await driver.wait(async () => {
     const inputs = await driver.findElements(
-      By.css('input[placeholder="Title, Author or Keywords..."]')
+      byTestId('product-search-input')
     );
 
     for (const input of inputs) {
@@ -139,7 +147,7 @@ async function searchProduct(driver, keyword) {
 async function openProduct(driver, productName) {
   const productLink = await driver.wait(async () => {
     try {
-      const links = await driver.findElements(By.css('a[href*="/book/"]'));
+      const links = await driver.findElements(byTestId('product-card-link'));
 
       for (const link of links) {
         try {
@@ -184,7 +192,7 @@ async function openProduct(driver, productName) {
 async function addCurrentBookToCart(driver) {
   const addToCartButton = await waitClickable(
     driver,
-    By.css('button[name="cart-btn"]')
+    byTestId('book-add-to-cart-button')
   );
 
   await addToCartButton.click();
@@ -241,7 +249,7 @@ test('user can register a new account', async () => {
   // 3. Enter username
   const usernameInput = await waitVisible(
     driver,
-    By.xpath("//label[contains(., 'Username')]/following::input[1]")
+    byTestIdInput('register-name-input')
   );
   await usernameInput.clear();
   await usernameInput.sendKeys(credentials.name);
@@ -249,7 +257,7 @@ test('user can register a new account', async () => {
   // 4. Enter email
   const emailInput = await waitVisible(
     driver,
-    By.xpath("//label[contains(., 'Email')]/following::input[1]")
+    byTestIdInput('register-email-input')
   );
   await emailInput.clear();
   await emailInput.sendKeys(credentials.email);
@@ -257,7 +265,7 @@ test('user can register a new account', async () => {
   // 5. Enter password
   const passwordInput = await waitVisible(
     driver,
-    By.xpath("//label[contains(., 'Password')]/following::input[1]")
+    byTestIdInput('register-password-input')
   );
   await passwordInput.clear();
   await passwordInput.sendKeys(credentials.password);
@@ -265,7 +273,7 @@ test('user can register a new account', async () => {
   // 6. Enter confirm password
   const confirmPasswordInput = await waitVisible(
     driver,
-    By.xpath("//label[contains(., 'Confirm Password')]/following::input[1]")
+    byTestIdInput('register-confirm-password-input')
   );
   await confirmPasswordInput.clear();
   await confirmPasswordInput.sendKeys(credentials.password);
@@ -273,7 +281,7 @@ test('user can register a new account', async () => {
   // 7. Tick terms and conditions checkbox
   const termsCheckbox = await waitVisible(
     driver,
-    By.css('input[type="checkbox"]')
+    By.css('[data-testid="register-terms-checkbox"] input[type="checkbox"]')
   );
 
   await driver.executeScript("arguments[0].click();", termsCheckbox);
@@ -281,7 +289,7 @@ test('user can register a new account', async () => {
   // 8. Click Sign Up button
   const signUpButton = await waitClickable(
     driver,
-    By.xpath("//button[contains(., 'Sign Up')]")
+    byTestId('register-submit-button')
   );
 
   await signUpButton.click();
@@ -329,7 +337,7 @@ test('add a book to cart after login', async () => {
 
   const successMessage = await waitVisible(
     driver,
-    By.xpath("//*[contains(text(), 'Successfully added to cart')]")
+    byTestId('book-add-to-cart-success')
   );
 
   expect(await successMessage.isDisplayed()).toBe(true);
@@ -352,7 +360,7 @@ test('create purchase from cart after adding a book', async () => {
   // 5. Verify add to cart success message
   const successMessage = await waitVisible(
     driver,
-    By.xpath("//*[contains(text(), 'Successfully added to cart')]")
+    byTestId('book-add-to-cart-success')
   );
 
   expect(await successMessage.isDisplayed()).toBe(true);
@@ -362,7 +370,7 @@ test('create purchase from cart after adding a book', async () => {
 
   await waitVisible(
     driver,
-    By.xpath("//*[contains(text(), 'My Cart')]")
+    byTestId('cart-page-title')
   );
 
   // 7. Verify cart contains selected book
@@ -374,7 +382,7 @@ test('create purchase from cart after adding a book', async () => {
   // 8. Select all cart items
   const selectAllCheckbox = await waitClickable(
     driver,
-    By.css('#selectAll')
+    byTestId('cart-select-all-checkbox')
   );
 
   await selectAllCheckbox.click();
@@ -382,7 +390,7 @@ test('create purchase from cart after adding a book', async () => {
   // 9. Checkout
   const checkoutButton = await waitClickable(
     driver,
-    By.xpath("//button[contains(., 'Checkout')]")
+    byTestId('cart-checkout-button')
   );
 
   await checkoutButton.click();
@@ -390,7 +398,7 @@ test('create purchase from cart after adding a book', async () => {
   // 10. Verify cart becomes empty after checkout
   const emptyCartMessage = await waitVisible(
     driver,
-    By.xpath("//*[contains(text(), 'Your cart is empty') or contains(text(), 'Add some books to get started')]")
+    byTestId('cart-empty-message')
   );
 
   expect(await emptyCartMessage.isDisplayed()).toBe(true);
@@ -403,13 +411,13 @@ test('create purchase from cart after adding a book', async () => {
   // 12. Verify purchase page is loaded
   await waitVisible(
     driver,
-    By.xpath("//*[contains(text(), 'Purchase') or contains(text(), 'Purchase History') or contains(text(), 'My Purchase')]")
+    byTestId('purchase-page-title')
   );
 
   // 13. Verify purchased book appears in purchase history
   const purchasedBook = await waitVisible(
     driver,
-    By.xpath("//*[contains(text(), 'One Piece')]")
+    byTestId('purchase-item-title')
   );
 
   expect(await purchasedBook.isDisplayed()).toBe(true);
@@ -430,7 +438,7 @@ test('user can reset password from profile page', async () => {
   // 3. Click Reset Password button on profile page
   const resetPasswordButton = await waitClickable(
     driver,
-    By.xpath("//button[contains(., 'Reset Password')]")
+    byTestId('profile-reset-password-button')
   );
 
   await resetPasswordButton.click();
@@ -444,7 +452,7 @@ test('user can reset password from profile page', async () => {
   // 5. Enter new password
   const newPasswordInput = await waitVisible(
     driver,
-    By.css('input[name="password"]')
+    byTestIdInput('reset-password-input')
   );
 
   await newPasswordInput.clear();
@@ -453,7 +461,7 @@ test('user can reset password from profile page', async () => {
   // 6. Enter confirm new password
   const confirmPasswordInput = await waitVisible(
     driver,
-    By.css('input[name="confirmPassword"]')
+    byTestIdInput('reset-confirm-password-input')
   );
 
   await confirmPasswordInput.clear();
@@ -462,7 +470,7 @@ test('user can reset password from profile page', async () => {
   // 7. Click Reset Password submit button
   const submitResetButton = await waitClickable(
     driver,
-    By.xpath("//button[contains(., 'Reset Password')]")
+    byTestId('reset-password-submit-button')
   );
 
   await submitResetButton.click();
@@ -470,7 +478,7 @@ test('user can reset password from profile page', async () => {
   // 8. Verify success message appears
   const successMessage = await waitVisible(
     driver,
-    By.xpath("//*[contains(text(), 'Your password has been reset successfully.')]")
+    byTestId('reset-password-success')
   );
 
   expect(await successMessage.isDisplayed()).toBe(true);
@@ -493,7 +501,7 @@ test('user can log out after login', async () => {
   // 3. Wait for Log Out button
   const logoutButton = await waitClickable(
     driver,
-    By.xpath("//button[contains(., 'Log Out')]")
+    byTestId('profile-logout-button')
   );
 
   // 4. Click Log Out
