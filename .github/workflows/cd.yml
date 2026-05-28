@@ -95,7 +95,11 @@ jobs:
 
           echo "Using API URL: $API_URL"
 
-          sed -i "s|cfg.API_BASE_URL = cfg.API_BASE_URL ?? \"\";|cfg.API_BASE_URL = \"$API_URL\";|g" js/config.js
+          sed -i "s|cfg.API_BASE_URL = .*;|cfg.API_BASE_URL = \"$API_URL\";|g" js/config.js
+
+      - name: Verify config.js after injection
+        run: |
+          cat js/config.js
 
       - name: Build and push backend image
         uses: docker/build-push-action@v6
