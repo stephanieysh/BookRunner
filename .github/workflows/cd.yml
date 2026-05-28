@@ -70,6 +70,28 @@ jobs:
           username: ${{ secrets.ACR_USERNAME }}
           password: ${{ secrets.ACR_PASSWORD }}
 
+      - name: Inject frontend API URL
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            API_URL=$(az containerapp show \
+              --name ${{ secrets.ACA_PRODUCTION_BACKEND_APP }} \
+              --resource-group ${{ secrets.ACA_RESOURCE_GROUP }} \
+              --query "properties.configuration.ingress.fqdn" \
+              --output tsv)
+            API_URL="https://${API_URL}"
+          else
+            API_URL=$(az containerapp show \
+              --name ${{ secrets.ACA_STAGING_BACKEND_APP }} \
+              --resource-group ${{ secrets.ACA_RESOURCE_GROUP }} \
+              --query "properties.configuration.ingress.fqdn" \
+              --output tsv)
+            API_URL="https://${API_URL}"
+          fi
+
+          echo "Using API URL: $API_URL"
+
+          sed -i "s|cfg.API_BASE_URL = cfg.API_BASE_URL ?? \"\";|cfg.API_BASE_URL = \"$API_URL\";|g" js/config.js
+
       - name: Build and push backend image
         uses: docker/build-push-action@v6
         with:
@@ -80,11 +102,7 @@ jobs:
             ${{ env.BACKEND_IMAGE }}:${{ steps.meta.outputs.version }}
           cache-from: type=gha,scope=backend
           cache-to: type=gha,scope=backend,mode=max
-
-      - name: Inject production frontend API URL
-        run: |
-          sed -i "s|cfg.API_BASE_URL = cfg.API_BASE_URL ?? \"\";|cfg.API_BASE_URL = \"${{ env.PRODUCTION_BACKEND_URL }}\";|g" js/config.js
-
+          
       - name: Build and push frontend image
         uses: docker/build-push-action@v6
         with:
