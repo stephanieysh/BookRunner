@@ -70,6 +70,11 @@ jobs:
           username: ${{ secrets.ACR_USERNAME }}
           password: ${{ secrets.ACR_PASSWORD }}
 
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
       - name: Inject frontend API URL
         run: |
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
@@ -102,7 +107,7 @@ jobs:
             ${{ env.BACKEND_IMAGE }}:${{ steps.meta.outputs.version }}
           cache-from: type=gha,scope=backend
           cache-to: type=gha,scope=backend,mode=max
-          
+
       - name: Build and push frontend image
         uses: docker/build-push-action@v6
         with:
@@ -212,10 +217,6 @@ jobs:
             exit 1
           fi
           echo "PRODUCTION_BACKEND_URL=https://${FQDN}" >> "$GITHUB_ENV"
-
-      - name: Inject production frontend API URL
-        run: |
-          sed -i "s|cfg.API_BASE_URL = cfg.API_BASE_URL ?? \"\";|cfg.API_BASE_URL = \"${{ env.PRODUCTION_BACKEND_URL }}\";|g" js/config.js
 
       - name: Deploy frontend to production Container App
         uses: azure/container-apps-deploy-action@v2
