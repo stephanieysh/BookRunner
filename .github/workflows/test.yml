@@ -34,12 +34,12 @@ jobs:
     name: Frontend Selenium E2E tests
     runs-on: ubuntu-latest
     needs: npm-test
+    env:
+      JWT_SECRET: ci-test-secret
     steps:
       - uses: actions/checkout@v4
 
       - name: Start application with Docker Compose
-        env:
-          JWT_SECRET: ci-test-secret
         run: docker compose up -d --build --wait
 
       - name: Check running containers
