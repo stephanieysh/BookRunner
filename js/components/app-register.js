@@ -15,17 +15,17 @@ const Register = {
               <h2 class="text-center">Create Account</h2>
               <br />
 
-              <v-text-field v-model="name" :rules="nameRules" label="Username" color="#0d6efd" variant="outlined" prepend-inner-icon="mdi-account-outline" class="login_field rounded-3 mb-2" required />
-              <v-text-field v-model="email" :rules="emailRules" label="Email" color="#0d6efd" variant="outlined" prepend-inner-icon="mdi-email-outline" class="login_field rounded-3 mb-2" required />
-              <v-text-field v-model="password" :rules="passwordRules" :type="showPassword ? 'text' : 'password'" :append-inner-icon="showPassword ? 'mdi-eye' : 'mdi-eye-off'" @click:append-inner="togglePasswordVisibility" label="Password" color="#0d6efd" variant="outlined" prepend-inner-icon="mdi-lock-outline" class="login_field rounded-3 mb-2" required />
-              <v-text-field v-model="confirmPassword" :rules="confirmPasswordRules" :type="showPassword ? 'text' : 'password'" :append-inner-icon="showPassword ? 'mdi-eye' : 'mdi-eye-off'" @click:append-inner="togglePasswordVisibility" label="Confirm Password" color="#0d6efd" variant="outlined" prepend-inner-icon="mdi-lock-check-outline" class="login_field rounded-3 mb-2" required />
-              <v-checkbox v-model="agreed" :rules="agreeRules" label="I agree to the Terms and Conditions of Book Runner" class="mb-5 mx-0" color="#0d6efd" />
+              <v-text-field v-model="name" name="register-name" data-testid="register-name-input" :rules="nameRules" label="Username" color="#0d6efd" variant="outlined" prepend-inner-icon="mdi-account-outline" class="login_field rounded-3 mb-2" required />
+              <v-text-field v-model="email" name="register-email" data-testid="register-email-input" :rules="emailRules" label="Email" color="#0d6efd" variant="outlined" prepend-inner-icon="mdi-email-outline" class="login_field rounded-3 mb-2" required />
+              <v-text-field v-model="password" name="register-password" data-testid="register-password-input" :rules="passwordRules" :type="showPassword ? 'text' : 'password'" :append-inner-icon="showPassword ? 'mdi-eye' : 'mdi-eye-off'" @click:append-inner="togglePasswordVisibility" label="Password" color="#0d6efd" variant="outlined" prepend-inner-icon="mdi-lock-outline" class="login_field rounded-3 mb-2" required />
+              <v-text-field v-model="confirmPassword" name="register-confirm-password" data-testid="register-confirm-password-input" :rules="confirmPasswordRules" :type="showPassword ? 'text' : 'password'" :append-inner-icon="showPassword ? 'mdi-eye' : 'mdi-eye-off'" @click:append-inner="togglePasswordVisibility" label="Confirm Password" color="#0d6efd" variant="outlined" prepend-inner-icon="mdi-lock-check-outline" class="login_field rounded-3 mb-2" required />
+              <v-checkbox v-model="agreed" data-testid="register-terms-checkbox" :rules="agreeRules" label="I agree to the Terms and Conditions of Book Runner" class="mb-5 mx-0" color="#0d6efd" />
 
               <div class="mb-3 text-center text-danger">
                 <p v-if="msg">{{ msg }}</p>
               </div>
 
-              <v-btn class="btn btn-theme-primary rounded-3" block size="large" variant="flat" @click="submitForm">
+              <v-btn data-testid="register-submit-button" class="btn btn-theme-primary rounded-3" block size="large" variant="flat" @click="submitForm">
                 Sign Up
               </v-btn>
 

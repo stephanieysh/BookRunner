@@ -116,7 +116,7 @@ Three workflow files drive the automation pipeline:
 
 Triggered on every push and pull request to any branch (and manually via `workflow_dispatch`):
 
-1. **Backend tests** – installs Node.js 20, runs `npm ci` and `npm test` inside `backend/`
+1. **Backend tests** – installs Node.js 20, runs `npm ci` and `npm test` inside `backend/` (node:test suite + Jest/Supertest API suite)
 2. **Frontend Selenium E2E tests** – starts the Docker Compose stack with `docker compose up -d --build --wait`, then runs `npm test` inside `frontend-test/`
 
 The Selenium job uses a CI-only JWT secret so the backend container can boot during CI.
@@ -198,10 +198,16 @@ Returns HTTP 200 with JSON:
 { "status": "ok" }
 ```
 
-### Run smoke test
+### Run backend tests
 
 ```bash
 npm test
+```
+
+### Run only Jest + Supertest API tests
+
+```bash
+npm run test:api
 ```
 
 ### Verification notes

@@ -136,13 +136,13 @@ const Profile = {
                     <div class="row mb-4 mt-5">
                       <div class="col-12 mb-2">
                         <router-link to="/reset-pw">
-                          <button type="button" class="btn btn-warning w-100 text-dark py-2" :disabled="editMode">
+                          <button data-testid="profile-reset-password-button" type="button" class="btn btn-warning w-100 text-dark py-2" :disabled="editMode">
                             <i class="bi bi-key me-1"></i>Reset Password
                           </button>
                         </router-link>
                       </div>
                       <div class="col-12">
-                        <button type="button" class="btn btn-danger w-100 text-white py-2" @click="logout" :disabled="editMode">
+                        <button data-testid="profile-logout-button" type="button" class="btn btn-danger w-100 text-white py-2" @click="logout" :disabled="editMode">
                           <i class="bi bi-box-arrow-right me-1"></i>Log Out
                         </button>
                       </div>
