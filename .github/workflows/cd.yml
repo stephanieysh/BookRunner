@@ -135,13 +135,23 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
+      - name: Verify staging backend Container App exists
+        run: |
+          az containerapp show \
+            --name ${{ secrets.ACA_STAGING_BACKEND_APP }} \
+            --resource-group ${{ secrets.ACA_RESOURCE_GROUP }} \
+            --only-show-errors
+
       - name: Deploy backend to staging Container App
-        uses: azure/container-apps-deploy-action@v2
-        with:
-          resourceGroup: ${{ secrets.ACA_RESOURCE_GROUP }}
-          containerAppName: ${{ secrets.ACA_STAGING_BACKEND_APP }}
-          imageToDeploy: ${{ env.BACKEND_IMAGE }}:${{ needs.build-and-push.outputs.image-tag }}
-          environmentVariables: DATABASE_URL=${{ secrets.STAGING_DATABASE_URL }} JWT_SECRET=${{ secrets.STAGING_JWT_SECRET }} FRONTEND_ORIGIN=${{ secrets.STAGING_FRONTEND_ORIGIN }}
+        run: |
+          az containerapp update \
+            --name ${{ secrets.ACA_STAGING_BACKEND_APP }} \
+            --resource-group ${{ secrets.ACA_RESOURCE_GROUP }} \
+            --image ${{ env.BACKEND_IMAGE }}:${{ needs.build-and-push.outputs.image-tag }} \
+            --set-env-vars \
+              DATABASE_URL="${{ secrets.STAGING_DATABASE_URL }}" \
+              JWT_SECRET="${{ secrets.STAGING_JWT_SECRET }}" \
+              FRONTEND_ORIGIN="${{ secrets.STAGING_FRONTEND_ORIGIN }}"
 
       - name: Get staging backend URL
         run: |
