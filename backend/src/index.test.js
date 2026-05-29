@@ -2195,6 +2195,60 @@ test('DELETE /api/order-items returns 404 when non-empty order total update affe
   assert.equal(released, true);
 });
 
+test('PUT /api/order-items SQL uses explicit numeric casts to avoid type mismatch', async (t) => {
+  const userId = 'user-uuid-1';
+  const token = makeToken(userId);
+  const calls = [];
+  const client = {
+    query: async (sql, params) => {
+      calls.push({ sql, params });
+
+      if (sql === 'BEGIN' || sql === 'COMMIT') {
+        return { rows: [], rowCount: null };
+      }
+
+      if (sql.includes('UPDATE order_items AS oi')) {
+        return {
+          rows: [{
+            id: 'item-1',
+            order_id: 'order-1',
+            quantity: 2,
+            unit_price: '30.00',
+            line_total: '60.00',
+          }],
+          rowCount: 1,
+        };
+      }
+
+      if (sql.includes('UPDATE orders')) {
+        return { rows: [{ total_amount: '60.00' }], rowCount: 1 };
+      }
+
+      throw new Error(`Unexpected SQL: ${sql}`);
+    },
+    release: () => {},
+  };
+
+  t.mock.method(db, 'connect', async () => client);
+
+  await withServer(async (port) => {
+    const response = await fetch(`http://127.0.0.1:${port}/api/order-items?id=item-1`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ quantity: 2 }),
+    });
+
+    assert.equal(response.status, 200);
+  });
+
+  const updateSql = calls.find((c) => c.sql.includes('UPDATE order_items AS oi')).sql;
+  assert.match(updateSql, /SET quantity = \$1::int, line_total = oi\.unit_price \* \$1::numeric/,
+    'UPDATE must use explicit ::int and ::numeric casts');
+});
+
 test('purchase component expires session and redirects to login on 401 purchase-item mutations', () => {
   const purchaseComponentPath = path.join(__dirname, '..', '..', 'js', 'components', 'app-purchase.js');
   const source = fs.readFileSync(purchaseComponentPath, 'utf8');
