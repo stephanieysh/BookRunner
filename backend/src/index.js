@@ -2,6 +2,20 @@
 
 require('dotenv').config();
 
+if (process.env.APPLICATIONINSIGHTS_CONNECTION_STRING) {
+  const appInsights = require('applicationinsights');
+  appInsights.setup(process.env.APPLICATIONINSIGHTS_CONNECTION_STRING);
+  appInsights.start();
+  process.on('SIGTERM', () => {
+    appInsights.defaultClient.flush();
+    process.exit(0);
+  });
+  process.on('SIGINT', () => {
+    appInsights.defaultClient.flush();
+    process.exit(0);
+  });
+}
+
 const express = require('express');
 const db = require('./db');
 const userRoutes = require('./routes/users');
