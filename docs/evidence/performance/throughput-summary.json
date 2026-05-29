@@ -1,0 +1,476 @@
+{
+    "metrics": {
+        "http_req_failed": {
+            "passes": 615,
+            "fails": 5099,
+            "thresholds": {
+                "rate<0.01": true
+            },
+            "value": 0.10763038151907596
+        },
+        "iteration_duration": {
+            "avg": 8154.527638709088,
+            "min": 2507.498478,
+            "med": 7668.3265045,
+            "max": 20881.391283,
+            "p(90)": 11621.902889,
+            "p(95)": 13079.586877699998
+        },
+        "http_req_connecting": {
+            "avg": 3.723308923171159,
+            "min": 0,
+            "med": 0,
+            "max": 235.828183,
+            "p(90)": 0,
+            "p(95)": 0
+        },
+        "http_req_waiting": {
+            "avg": 1545.0577694074211,
+            "min": 202.744189,
+            "med": 1097.2549895,
+            "max": 10118.849617,
+            "p(90)": 3464.4809018,
+            "p(95)": 4438.469505949999
+        },
+        "http_req_tls_handshaking": {
+            "max": 233.263344,
+            "p(90)": 0,
+            "p(95)": 0,
+            "avg": 3.7240917369618467,
+            "min": 0,
+            "med": 0
+        },
+        "http_reqs": {
+            "count": 5714,
+            "rate": 32.637904250112555,
+            "thresholds": {
+                "rate>=20": false
+            }
+        },
+        "http_req_receiving": {
+            "min": 0.012989,
+            "med": 0.042713,
+            "max": 0.397019,
+            "p(90)": 0.0733225,
+            "p(95)": 0.08323114999999998,
+            "avg": 0.04745601102555108
+        },
+        "failed_requests": {
+            "count": 427,
+            "rate": 2.4389893445568886
+        },
+        "data_received": {
+            "count": 7302876,
+            "rate": 41713.4350084783
+        },
+        "checks": {
+            "passes": 7689,
+            "fails": 873,
+            "thresholds": {
+                "rate>0.95": true
+            },
+            "value": 0.8980378416257884
+        },
+        "vus": {
+            "min": 0,
+            "max": 100,
+            "value": 3
+        },
+        "data_sent": {
+            "count": 1056148,
+            "rate": 6032.631658723814
+        },
+        "http_req_duration{expected_response:true}": {
+            "p(90)": 3061.3733763999994,
+            "p(95)": 3823.862153499999,
+            "avg": 1367.6225195169604,
+            "min": 202.952047,
+            "med": 1004.882585,
+            "max": 9821.614074
+        },
+        "http_req_blocked": {
+            "min": 0.00015,
+            "med": 0.00032,
+            "max": 464.312298,
+            "p(90)": 0.000461,
+            "p(95)": 0.000604149999999995,
+            "avg": 7.451335956423193
+        },
+        "iterations": {
+            "count": 1454,
+            "rate": 8.305129992940786
+        },
+        "http_req_duration": {
+            "p(95)": 4438.570308799999,
+            "avg": 1545.1762476720305,
+            "min": 202.952047,
+            "med": 1097.3759384999998,
+            "max": 10118.942549,
+            "p(90)": 3464.6334028,
+            "thresholds": {
+                "avg<2000": false,
+                "p(95)<3000": true
+            }
+        },
+        "group_duration": {
+            "p(90)": 3489.0639364,
+            "p(95)": 4472.986262899993,
+            "avg": 1560.690249448885,
+            "min": 203.421573,
+            "med": 1122.7908400000001,
+            "max": 10119.047455
+        },
+        "vus_max": {
+            "value": 100,
+            "min": 50,
+            "max": 100
+        },
+        "error_rate": {
+            "passes": 615,
+            "fails": 5039,
+            "value": 0.10877255040679165
+        },
+        "successful_logins": {
+            "count": 1373,
+            "rate": 7.842464566924141
+        },
+        "dropped_iterations": {
+            "count": 946,
+            "rate": 5.403475222367252
+        },
+        "http_req_sending": {
+            "avg": 0.07102225358767972,
+            "min": 0.022113,
+            "med": 0.0673,
+            "max": 0.506651,
+            "p(90)": 0.09803669999999999,
+            "p(95)": 0.10955314999999999
+        }
+    },
+    "setup_data": {
+        "users": [
+            {
+                "email": "loadtest_user0_1780033714181@bookrunner.test",
+                "password": "TestPass0!"
+            },
+            {
+                "email": "loadtest_user1_1780033715384@bookrunner.test",
+                "password": "TestPass1!"
+            },
+            {
+                "email": "loadtest_user2_1780033716188@bookrunner.test",
+                "password": "TestPass2!"
+            },
+            {
+                "email": "loadtest_user3_1780033716979@bookrunner.test",
+                "password": "TestPass3!"
+            },
+            {
+                "email": "loadtest_user4_1780033717788@bookrunner.test",
+                "password": "TestPass4!"
+            },
+            {
+                "email": "loadtest_user5_1780033718591@bookrunner.test",
+                "password": "TestPass5!"
+            },
+            {
+                "password": "TestPass6!",
+                "email": "loadtest_user6_1780033719414@bookrunner.test"
+            },
+            {
+                "email": "loadtest_user7_1780033720235@bookrunner.test",
+                "password": "TestPass7!"
+            },
+            {
+                "email": "loadtest_user8_1780033721070@bookrunner.test",
+                "password": "TestPass8!"
+            },
+            {
+                "email": "loadtest_user9_1780033721872@bookrunner.test",
+                "password": "TestPass9!"
+            },
+            {
+                "email": "loadtest_user10_1780033722660@bookrunner.test",
+                "password": "TestPass10!"
+            },
+            {
+                "email": "loadtest_user11_1780033723428@bookrunner.test",
+                "password": "TestPass11!"
+            },
+            {
+                "email": "loadtest_user12_1780033724199@bookrunner.test",
+                "password": "TestPass12!"
+            },
+            {
+                "email": "loadtest_user13_1780033725106@bookrunner.test",
+                "password": "TestPass13!"
+            },
+            {
+                "password": "TestPass14!",
+                "email": "loadtest_user14_1780033725909@bookrunner.test"
+            },
+            {
+                "email": "loadtest_user15_1780033726730@bookrunner.test",
+                "password": "TestPass15!"
+            },
+            {
+                "email": "loadtest_user16_1780033727528@bookrunner.test",
+                "password": "TestPass16!"
+            },
+            {
+                "email": "loadtest_user17_1780033728353@bookrunner.test",
+                "password": "TestPass17!"
+            },
+            {
+                "email": "loadtest_user18_1780033729127@bookrunner.test",
+                "password": "TestPass18!"
+            },
+            {
+                "email": "loadtest_user19_1780033729958@bookrunner.test",
+                "password": "TestPass19!"
+            },
+            {
+                "email": "loadtest_user20_1780033730723@bookrunner.test",
+                "password": "TestPass20!"
+            },
+            {
+                "email": "loadtest_user21_1780033731493@bookrunner.test",
+                "password": "TestPass21!"
+            },
+            {
+                "email": "loadtest_user22_1780033732295@bookrunner.test",
+                "password": "TestPass22!"
+            },
+            {
+                "email": "loadtest_user23_1780033733095@bookrunner.test",
+                "password": "TestPass23!"
+            },
+            {
+                "email": "loadtest_user24_1780033733939@bookrunner.test",
+                "password": "TestPass24!"
+            },
+            {
+                "email": "loadtest_user25_1780033734730@bookrunner.test",
+                "password": "TestPass25!"
+            },
+            {
+                "email": "loadtest_user26_1780033735569@bookrunner.test",
+                "password": "TestPass26!"
+            },
+            {
+                "email": "loadtest_user27_1780033736363@bookrunner.test",
+                "password": "TestPass27!"
+            },
+            {
+                "email": "loadtest_user28_1780033737163@bookrunner.test",
+                "password": "TestPass28!"
+            },
+            {
+                "password": "TestPass29!",
+                "email": "loadtest_user29_1780033737931@bookrunner.test"
+            },
+            {
+                "email": "loadtest_user30_1780033738761@bookrunner.test",
+                "password": "TestPass30!"
+            },
+            {
+                "password": "TestPass31!",
+                "email": "loadtest_user31_1780033739590@bookrunner.test"
+            },
+            {
+                "email": "loadtest_user32_1780033740403@bookrunner.test",
+                "password": "TestPass32!"
+            },
+            {
+                "email": "loadtest_user33_1780033741215@bookrunner.test",
+                "password": "TestPass33!"
+            },
+            {
+                "email": "loadtest_user34_1780033742023@bookrunner.test",
+                "password": "TestPass34!"
+            },
+            {
+                "email": "loadtest_user35_1780033742840@bookrunner.test",
+                "password": "TestPass35!"
+            },
+            {
+                "email": "loadtest_user36_1780033743603@bookrunner.test",
+                "password": "TestPass36!"
+            },
+            {
+                "password": "TestPass37!",
+                "email": "loadtest_user37_1780033744378@bookrunner.test"
+            },
+            {
+                "email": "loadtest_user38_1780033745188@bookrunner.test",
+                "password": "TestPass38!"
+            },
+            {
+                "password": "TestPass39!",
+                "email": "loadtest_user39_1780033745973@bookrunner.test"
+            },
+            {
+                "email": "loadtest_user40_1780033746808@bookrunner.test",
+                "password": "TestPass40!"
+            },
+            {
+                "email": "loadtest_user41_1780033747633@bookrunner.test",
+                "password": "TestPass41!"
+            },
+            {
+                "password": "TestPass42!",
+                "email": "loadtest_user42_1780033748427@bookrunner.test"
+            },
+            {
+                "password": "TestPass43!",
+                "email": "loadtest_user43_1780033749235@bookrunner.test"
+            },
+            {
+                "email": "loadtest_user44_1780033750065@bookrunner.test",
+                "password": "TestPass44!"
+            },
+            {
+                "email": "loadtest_user45_1780033750831@bookrunner.test",
+                "password": "TestPass45!"
+            },
+            {
+                "email": "loadtest_user46_1780033751655@bookrunner.test",
+                "password": "TestPass46!"
+            },
+            {
+                "email": "loadtest_user47_1780033752413@bookrunner.test",
+                "password": "TestPass47!"
+            },
+            {
+                "email": "loadtest_user48_1780033753202@bookrunner.test",
+                "password": "TestPass48!"
+            },
+            {
+                "email": "loadtest_user49_1780033754012@bookrunner.test",
+                "password": "TestPass49!"
+            },
+            {
+                "email": "loadtest_user50_1780033754799@bookrunner.test",
+                "password": "TestPass50!"
+            },
+            {
+                "email": "loadtest_user51_1780033755620@bookrunner.test",
+                "password": "TestPass51!"
+            },
+            {
+                "email": "loadtest_user52_1780033756437@bookrunner.test",
+                "password": "TestPass52!"
+            },
+            {
+                "password": "TestPass53!",
+                "email": "loadtest_user53_1780033757260@bookrunner.test"
+            },
+            {
+                "email": "loadtest_user54_1780033758066@bookrunner.test",
+                "password": "TestPass54!"
+            },
+            {
+                "email": "loadtest_user55_1780033758857@bookrunner.test",
+                "password": "TestPass55!"
+            },
+            {
+                "email": "loadtest_user56_1780033759616@bookrunner.test",
+                "password": "TestPass56!"
+            },
+            {
+                "email": "loadtest_user57_1780033760387@bookrunner.test",
+                "password": "TestPass57!"
+            },
+            {
+                "email": "loadtest_user58_1780033761220@bookrunner.test",
+                "password": "TestPass58!"
+            },
+            {
+                "password": "TestPass59!",
+                "email": "loadtest_user59_1780033761986@bookrunner.test"
+            }
+        ]
+    },
+    "root_group": {
+        "name": "",
+        "path": "",
+        "id": "d41d8cd98f00b204e9800998ecf8427e",
+        "groups": {
+            "Login user": {
+                "path": "::Login user",
+                "id": "6a3bfab089b655b19af93a688c1f780b",
+                "groups": {},
+                "checks": {
+                        "login status 200": {
+                            "path": "::Login user::login status 200",
+                            "id": "d4f0de94b691430efb8e5570814c7e5a",
+                            "passes": 1373,
+                            "fails": 81,
+                            "name": "login status 200"
+                        },
+                        "login has token": {
+                            "passes": 1373,
+                            "fails": 81,
+                            "name": "login has token",
+                            "path": "::Login user::login has token",
+                            "id": "1168cb8a0430ee63dbe8d56014fe3995"
+                        }
+                    },
+                "name": "Login user"
+            },
+            "Browse catalog": {
+                "name": "Browse catalog",
+                "path": "::Browse catalog",
+                "id": "80b60798b45343f6d3178dc662289db0",
+                "groups": {},
+                "checks": {
+                        "catalog status 200": {
+                            "name": "catalog status 200",
+                            "path": "::Browse catalog::catalog status 200",
+                            "id": "ff5b5b8c5f541df14376a20b18a06337",
+                            "passes": 1277,
+                            "fails": 177
+                        },
+                        "catalog has books": {
+                            "fails": 177,
+                            "name": "catalog has books",
+                            "path": "::Browse catalog::catalog has books",
+                            "id": "629822c2a342eac9b75f6cafc0b5f113",
+                            "passes": 1277
+                        }
+                    }
+            },
+            "Add to cart": {
+                "name": "Add to cart",
+                "path": "::Add to cart",
+                "id": "0f1d4b13c85de4427f714b4a353019fa",
+                "groups": {},
+                "checks": {
+                        "add-to-cart status 201 or 200": {
+                            "passes": 1185,
+                            "fails": 188,
+                            "name": "add-to-cart status 201 or 200",
+                            "path": "::Add to cart::add-to-cart status 201 or 200",
+                            "id": "a493689f1d22a3df22db585131241d60"
+                        }
+                    }
+            },
+            "View cart": {
+                "name": "View cart",
+                "path": "::View cart",
+                "id": "30ed069d2a9a41cd54bdc10408269e71",
+                "groups": {},
+                "checks": {
+                        "view-cart status 200": {
+                            "name": "view-cart status 200",
+                            "path": "::View cart::view-cart status 200",
+                            "id": "673072255d31662e930d790227208bf1",
+                            "passes": 1204,
+                            "fails": 169
+                        }
+                    }
+            }
+        },
+        "checks": {}
+    }
+}

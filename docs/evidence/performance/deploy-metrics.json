@@ -1,0 +1,1 @@
+{"deploy_duration_seconds":26,"target_seconds":300,"passed":true,"commit":"9cf805f4f121b5302d83cfbe07ae20e225607a31","image_tag":"main-9cf805f4","app_name":"bookrunner-backend-staging","environment":"staging","timestamp":"2026-05-29T05:40:19Z"}

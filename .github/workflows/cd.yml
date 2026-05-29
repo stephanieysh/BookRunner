@@ -345,10 +345,11 @@ jobs:
               TEST_NAME=$(basename "$f" .json | sed 's/-summary//')
               echo ""
               echo "--- $TEST_NAME ---"
-              echo "  Avg response time: $(node -e "const d=require('./$f'); console.log(d.metrics.http_req_duration.values.avg.toFixed(2)+'ms')" 2>/dev/null || echo 'N/A')"
-              echo "  P95 response time: $(node -e "const d=require('./$f'); console.log(d.metrics.http_req_duration.values['p(95)'].toFixed(2)+'ms')" 2>/dev/null || echo 'N/A')"
-              echo "  Request rate:      $(node -e "const d=require('./$f'); console.log(d.metrics.http_reqs.values.rate.toFixed(2)+' req/s')" 2>/dev/null || echo 'N/A')"
-              echo "  Max VUs:           $(node -e "const d=require('./$f'); console.log(d.metrics.vus_max.values.max)" 2>/dev/null || echo 'N/A')"
+              echo "  Avg response time: $(jq -r '.metrics.http_req_duration.avg | tostring + "ms"' "$f")"
+              echo "  P95 response time: $(jq -r '.metrics["http_req_duration"]["p(95)"] | tostring + "ms"' "$f")"
+              echo "  Request rate:      $(jq -r '.metrics.http_reqs.rate | tostring + " req/s"' "$f")"
+              echo "  Max VUs:           $(jq -r '.metrics.vus_max.max' "$f")"
+              echo "  Check pass rate:   $(jq -r '.metrics.checks.value * 100 | tostring + "%" ' "$f")"
             fi
           done
           echo ""
