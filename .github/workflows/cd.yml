@@ -70,6 +70,37 @@ jobs:
           username: ${{ secrets.ACR_USERNAME }}
           password: ${{ secrets.ACR_PASSWORD }}
 
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Inject frontend API URL
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            API_URL=$(az containerapp show \
+              --name ${{ secrets.ACA_PRODUCTION_BACKEND_APP }} \
+              --resource-group ${{ secrets.ACA_RESOURCE_GROUP }} \
+              --query "properties.configuration.ingress.fqdn" \
+              --output tsv)
+            API_URL="https://${API_URL}"
+          else
+            API_URL=$(az containerapp show \
+              --name ${{ secrets.ACA_STAGING_BACKEND_APP }} \
+              --resource-group ${{ secrets.ACA_RESOURCE_GROUP }} \
+              --query "properties.configuration.ingress.fqdn" \
+              --output tsv)
+            API_URL="https://${API_URL}"
+          fi
+
+          echo "Using API URL: $API_URL"
+
+          sed -i "s|cfg.API_BASE_URL = .*;|cfg.API_BASE_URL = \"$API_URL\";|g" js/config.js
+
+      - name: Verify config.js after injection
+        run: |
+          cat js/config.js
+
       - name: Build and push backend image
         uses: docker/build-push-action@v6
         with:
@@ -124,6 +155,19 @@ jobs:
             exit 1
           fi
           echo "STAGING_BACKEND_URL=https://${FQDN}" >> "$GITHUB_ENV"
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Debug config path
+        run: |
+          pwd
+          ls -la
+          find . -name "config.js"
+
+      - name: Inject staging frontend API URL
+        run: |
+          sed -i "s|cfg.API_BASE_URL = cfg.API_BASE_URL ?? \"\";|cfg.API_BASE_URL = \"${{ env.STAGING_BACKEND_URL }}\";|g" js/config.js
 
       - name: Deploy frontend to staging Container App
         uses: azure/container-apps-deploy-action@v2
@@ -184,4 +228,4 @@ jobs:
           resourceGroup: ${{ secrets.ACA_RESOURCE_GROUP }}
           containerAppName: ${{ secrets.ACA_PRODUCTION_FRONTEND_APP }}
           imageToDeploy: ${{ env.FRONTEND_IMAGE }}:${{ needs.build-and-push.outputs.image-tag }}
-          environmentVariables: BACKEND_URL=${{ env.PRODUCTION_BACKEND_URL }}
+          environmentVariables: API_BASE_URL=${{ env.PRODUCTION_BACKEND_URL }}
