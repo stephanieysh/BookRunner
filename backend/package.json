@@ -11,6 +11,7 @@
     "test:api": "jest --runInBand src/index.api.test.js"
   },
   "dependencies": {
+    "applicationinsights": "^2.9.0",
     "bcryptjs": "^3.0.3",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",

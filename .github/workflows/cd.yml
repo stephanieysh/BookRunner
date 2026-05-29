@@ -156,12 +156,13 @@ jobs:
           DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
           JWT_SECRET: ${{ secrets.STAGING_JWT_SECRET }}
           FRONTEND_ORIGIN: ${{ secrets.STAGING_FRONTEND_ORIGIN }}
+          APPINSIGHTS_CS: ${{ secrets.STAGING_APPINSIGHTS_CONNECTION_STRING }}
         run: |
           az containerapp update \
             --name "$ACA_APP" \
             --resource-group "$ACA_RG" \
             --image "$BACKEND_IMAGE:${{ needs.build-and-push.outputs.image-tag }}" \
-            --set-env-vars DATABASE_URL="$DATABASE_URL" JWT_SECRET="$JWT_SECRET" FRONTEND_ORIGIN="$FRONTEND_ORIGIN"
+            --set-env-vars DATABASE_URL="$DATABASE_URL" JWT_SECRET="$JWT_SECRET" FRONTEND_ORIGIN="$FRONTEND_ORIGIN" APPLICATIONINSIGHTS_CONNECTION_STRING="$APPINSIGHTS_CS"
 
       - name: Wait for staging backend to be running
         env:
@@ -412,7 +413,7 @@ jobs:
           resourceGroup: ${{ secrets.ACA_RESOURCE_GROUP }}
           containerAppName: ${{ secrets.ACA_PRODUCTION_BACKEND_APP }}
           imageToDeploy: ${{ env.BACKEND_IMAGE }}:${{ needs.build-and-push.outputs.image-tag }}
-          environmentVariables: DATABASE_URL=${{ secrets.PRODUCTION_DATABASE_URL }} JWT_SECRET=${{ secrets.PRODUCTION_JWT_SECRET }} FRONTEND_ORIGIN=${{ secrets.PRODUCTION_FRONTEND_ORIGIN }}
+          environmentVariables: DATABASE_URL=${{ secrets.PRODUCTION_DATABASE_URL }} JWT_SECRET=${{ secrets.PRODUCTION_JWT_SECRET }} FRONTEND_ORIGIN=${{ secrets.PRODUCTION_FRONTEND_ORIGIN }} APPLICATIONINSIGHTS_CONNECTION_STRING=${{ secrets.PRODUCTION_APPINSIGHTS_CONNECTION_STRING }}
 
       - name: Wait for production backend to be running
         env:
