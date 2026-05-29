@@ -136,25 +136,37 @@ jobs:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Verify staging backend Container App exists
+        env:
+          ACA_APP: ${{ secrets.ACA_STAGING_BACKEND_APP }}
+          ACA_RG: ${{ secrets.ACA_RESOURCE_GROUP }}
         run: |
           az containerapp show \
-            --name ${{ secrets.ACA_STAGING_BACKEND_APP }} \
-            --resource-group ${{ secrets.ACA_RESOURCE_GROUP }} \
+            --name "$ACA_APP" \
+            --resource-group "$ACA_RG" \
             --only-show-errors
 
       - name: Deploy backend to staging Container App
+        env:
+          ACA_APP: ${{ secrets.ACA_STAGING_BACKEND_APP }}
+          ACA_RG: ${{ secrets.ACA_RESOURCE_GROUP }}
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.STAGING_JWT_SECRET }}
+          FRONTEND_ORIGIN: ${{ secrets.STAGING_FRONTEND_ORIGIN }}
         run: |
           az containerapp update \
-            --name ${{ secrets.ACA_STAGING_BACKEND_APP }} \
-            --resource-group ${{ secrets.ACA_RESOURCE_GROUP }} \
-            --image ${{ env.BACKEND_IMAGE }}:${{ needs.build-and-push.outputs.image-tag }} \
-            --set-env-vars DATABASE_URL="${{ secrets.STAGING_DATABASE_URL }}" JWT_SECRET="${{ secrets.STAGING_JWT_SECRET }}" FRONTEND_ORIGIN="${{ secrets.STAGING_FRONTEND_ORIGIN }}"
+            --name "$ACA_APP" \
+            --resource-group "$ACA_RG" \
+            --image "$BACKEND_IMAGE:${{ needs.build-and-push.outputs.image-tag }}" \
+            --set-env-vars DATABASE_URL="$DATABASE_URL" JWT_SECRET="$JWT_SECRET" FRONTEND_ORIGIN="$FRONTEND_ORIGIN"
 
       - name: Get staging backend URL
+        env:
+          ACA_APP: ${{ secrets.ACA_STAGING_BACKEND_APP }}
+          ACA_RG: ${{ secrets.ACA_RESOURCE_GROUP }}
         run: |
           FQDN=$(az containerapp show \
-            --name ${{ secrets.ACA_STAGING_BACKEND_APP }} \
-            --resource-group ${{ secrets.ACA_RESOURCE_GROUP }} \
+            --name "$ACA_APP" \
+            --resource-group "$ACA_RG" \
             --query "properties.configuration.ingress.fqdn" \
             --output tsv)
           if [[ -z "${FQDN}" ]]; then
