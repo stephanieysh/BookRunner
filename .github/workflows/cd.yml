@@ -135,6 +135,10 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
+      - name: Record deploy start time
+        id: deploy_start
+        run: echo "timestamp=$(date +%s)" >> "$GITHUB_OUTPUT"
+
       - name: Verify staging backend Container App exists
         env:
           ACA_APP: ${{ secrets.ACA_STAGING_BACKEND_APP }}
@@ -159,6 +163,29 @@ jobs:
             --image "$BACKEND_IMAGE:${{ needs.build-and-push.outputs.image-tag }}" \
             --set-env-vars DATABASE_URL="$DATABASE_URL" JWT_SECRET="$JWT_SECRET" FRONTEND_ORIGIN="$FRONTEND_ORIGIN"
 
+      - name: Wait for staging backend to be running
+        env:
+          ACA_APP: ${{ secrets.ACA_STAGING_BACKEND_APP }}
+          ACA_RG: ${{ secrets.ACA_RESOURCE_GROUP }}
+        run: |
+          echo "Waiting for Container App to reach Running state..."
+          for i in $(seq 1 30); do
+            STATE=$(az containerapp show \
+              --name "$ACA_APP" \
+              --resource-group "$ACA_RG" \
+              --query "properties.runningStatus" \
+              --output tsv 2>/dev/null || echo "unknown")
+            echo "  Attempt $i: runningStatus=$STATE"
+            if [[ "$STATE" == "Running" ]]; then
+              echo "Container App is Running."
+              break
+            fi
+            sleep 10
+          done
+          if [[ "$STATE" != "Running" ]]; then
+            echo "::warning::Container App did not reach Running state within 5 minutes."
+          fi
+
       - name: Get staging backend URL
         env:
           ACA_APP: ${{ secrets.ACA_STAGING_BACKEND_APP }}
@@ -174,6 +201,37 @@ jobs:
             exit 1
           fi
           echo "STAGING_BACKEND_URL=https://${FQDN}" >> "$GITHUB_ENV"
+
+      - name: Record deploy duration
+        id: deploy_end
+        env:
+          ACA_APP: ${{ secrets.ACA_STAGING_BACKEND_APP }}
+          ACA_RG: ${{ secrets.ACA_RESOURCE_GROUP }}
+        run: |
+          END=$(date +%s)
+          START=${{ steps.deploy_start.outputs.timestamp }}
+          DURATION=$((END - START))
+          echo "deploy_duration=${DURATION}" >> "$GITHUB_OUTPUT"
+          echo "Deploy duration: ${DURATION}s (target: ≤300s)"
+          if [[ $DURATION -le 300 ]]; then
+            echo "Result: PASS"
+          else
+            echo "Result: FAIL (exceeded 5-minute target)"
+          fi
+
+      - name: Write deploy metrics
+        env:
+          ACA_APP: ${{ secrets.ACA_STAGING_BACKEND_APP }}
+        run: |
+          PASSED=$( [[ ${{ steps.deploy_end.outputs.deploy_duration }} -le 300 ]] && echo "true" || echo "false" )
+          echo "{\"deploy_duration_seconds\":${{ steps.deploy_end.outputs.deploy_duration }},\"target_seconds\":300,\"passed\":${PASSED},\"commit\":\"${{ github.sha }}\",\"image_tag\":\"${{ needs.build-and-push.outputs.image-tag }}\",\"app_name\":\"${{ env.ACA_APP }}\",\"environment\":\"staging\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" > deploy-metrics.json
+
+      - name: Upload deploy metrics artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-metrics-staging
+          path: deploy-metrics.json
+          retention-days: 30
 
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -220,6 +278,10 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
+      - name: Record deploy start time
+        id: deploy_start
+        run: echo "timestamp=$(date +%s)" >> "$GITHUB_OUTPUT"
+
       - name: Deploy backend to production Container App
         uses: azure/container-apps-deploy-action@v2
         with:
@@ -227,6 +289,59 @@ jobs:
           containerAppName: ${{ secrets.ACA_PRODUCTION_BACKEND_APP }}
           imageToDeploy: ${{ env.BACKEND_IMAGE }}:${{ needs.build-and-push.outputs.image-tag }}
           environmentVariables: DATABASE_URL=${{ secrets.PRODUCTION_DATABASE_URL }} JWT_SECRET=${{ secrets.PRODUCTION_JWT_SECRET }} FRONTEND_ORIGIN=${{ secrets.PRODUCTION_FRONTEND_ORIGIN }}
+
+      - name: Wait for production backend to be running
+        env:
+          ACA_APP: ${{ secrets.ACA_PRODUCTION_BACKEND_APP }}
+          ACA_RG: ${{ secrets.ACA_RESOURCE_GROUP }}
+        run: |
+          echo "Waiting for Container App to reach Running state..."
+          for i in $(seq 1 30); do
+            STATE=$(az containerapp show \
+              --name "$ACA_APP" \
+              --resource-group "$ACA_RG" \
+              --query "properties.runningStatus" \
+              --output tsv 2>/dev/null || echo "unknown")
+            echo "  Attempt $i: runningStatus=$STATE"
+            if [[ "$STATE" == "Running" ]]; then
+              echo "Container App is Running."
+              break
+            fi
+            sleep 10
+          done
+          if [[ "$STATE" != "Running" ]]; then
+            echo "::warning::Container App did not reach Running state within 5 minutes."
+          fi
+
+      - name: Record deploy duration
+        id: deploy_end
+        env:
+          ACA_APP: ${{ secrets.ACA_PRODUCTION_BACKEND_APP }}
+        run: |
+          END=$(date +%s)
+          START=${{ steps.deploy_start.outputs.timestamp }}
+          DURATION=$((END - START))
+          echo "deploy_duration=${DURATION}" >> "$GITHUB_OUTPUT"
+          echo "Deploy duration: ${DURATION}s (target: ≤300s)"
+          if [[ $DURATION -le 300 ]]; then
+            echo "Result: PASS"
+          else
+            echo "Result: FAIL (exceeded 5-minute target)"
+          fi
+
+      - name: Write deploy metrics
+        env:
+          ACA_APP: ${{ secrets.ACA_PRODUCTION_BACKEND_APP }}
+        run: |
+          PASSED=$( [[ ${{ steps.deploy_end.outputs.deploy_duration }} -le 300 ]] && echo "true" || echo "false" )
+          echo "{\"deploy_duration_seconds\":${{ steps.deploy_end.outputs.deploy_duration }},\"target_seconds\":300,\"passed\":${PASSED},\"commit\":\"${{ github.sha }}\",\"image_tag\":\"${{ needs.build-and-push.outputs.image-tag }}\",\"app_name\":\"${{ env.ACA_APP }}\",\"environment\":\"production\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" > deploy-metrics.json
+
+      - name: Upload deploy metrics artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-metrics-production
+          path: deploy-metrics.json
+          retention-days: 30
 
       - name: Get production backend URL
         run: |

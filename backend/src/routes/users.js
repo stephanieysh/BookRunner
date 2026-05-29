@@ -16,7 +16,7 @@ const BCRYPT_ROUNDS = 12;
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20,
+  max: Number(process.env.RATE_LIMIT_AUTH_MAX) || 20,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests, please try again later' },
@@ -24,7 +24,7 @@ const authLimiter = rateLimit({
 
 const profileLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: Number(process.env.RATE_LIMIT_PROFILE_MAX) || 100,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests, please try again later' },

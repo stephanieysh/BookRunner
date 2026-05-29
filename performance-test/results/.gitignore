@@ -1,0 +1,7 @@
+# Raw k6 results (large files, not needed in repo)
+*.json
+*.csv
+*.html
+
+# Keep the directory structure
+!.gitkeep
